@@ -2,6 +2,8 @@ import { clsx } from 'clsx'
 import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Copy, Lock, Paperclip, Pencil, PiggyBank, RotateCcw, Trash2, TrendingUp, Users } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { openAttachment, useAccounts, useCategories, useDeleteTransaction } from '../hooks/data'
+import { useInvestmentLink } from '../hooks/phase3'
+import { Link } from 'react-router-dom'
 import { formatDate } from '../lib/dates'
 import { TX_TYPE_LABEL, VISIBILITY_LABEL, txSign, type Transaction, type TransactionType } from '../lib/types'
 import { useAuth } from '../providers/AuthProvider'
@@ -103,6 +105,7 @@ export function TransactionDetail({ tx, onClose }: { tx: Transaction | null; onC
   const del = useDeleteTransaction()
   const [mode, setMode] = useState<'view' | 'edit' | 'duplicate' | 'delete'>('view')
   const [error, setError] = useState<unknown>(null)
+  const investmentLink = useInvestmentLink(tx?.id)
 
   if (!tx) return null
   const close = () => { setMode('view'); setError(null); del.reset(); onClose() }
@@ -131,7 +134,13 @@ export function TransactionDetail({ tx, onClose }: { tx: Transaction | null; onC
         open={mode === 'view'}
         onClose={close}
         title={tx.description}
-        footer={canEdit ? (
+        footer={investmentLink.data ? (
+          <div className="flex w-full flex-wrap items-center justify-between gap-2">
+            <span className="text-xs text-slate-500">Creado por una operación de inversión: se gestiona desde la inversión.</span>
+            <Link to={`/inversiones/${investmentLink.data}`} onClick={close}
+              className="inline-flex h-11 items-center rounded-xl bg-ink px-4 text-sm font-medium text-white">Ir a la inversión</Link>
+          </div>
+        ) : canEdit && !investmentLink.isLoading ? (
           <div className="flex w-full flex-wrap justify-between gap-2">
             <Button variant="ghost" className="text-red-600" onClick={() => setMode('delete')}><Trash2 className="size-4" />Eliminar</Button>
             <div className="flex gap-2">

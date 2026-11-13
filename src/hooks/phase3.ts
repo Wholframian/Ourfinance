@@ -213,3 +213,16 @@ export function useTopSubcategories(from: string, to: string, limit = 10) {
         .map((r) => ({ ...norm(r), tx_count: num(r.tx_count) })),
   })
 }
+
+/** Inversión a la que pertenece un movimiento de caja (si lo creó una operación) */
+export function useInvestmentLink(transactionId: string | undefined) {
+  return useQuery({
+    queryKey: ['inv', 'link', transactionId],
+    enabled: !!transactionId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('investment_transactions').select('investment_id').eq('transaction_id', transactionId!).maybeSingle()
+      if (error) throw error
+      return (data as { investment_id: string } | null)?.investment_id ?? null
+    },
+  })
+}

@@ -4,9 +4,9 @@ import {
   ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, findPossibleDuplicate, openAttachment, useAccounts, useCategories,
   useDeleteAttachment, useSaveTransaction, type AccountWithBalance, type TxInput,
 } from '../hooks/data'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
+import { useInvestmentLink } from '../hooks/phase3'
 import { Link } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
 import { getTripLink, setTripLink, useTrips } from '../hooks/phase2'
 import { formatDate, isValidISODate, todayISO } from '../lib/dates'
 import { errorMessage } from '../lib/errors'
@@ -87,20 +87,13 @@ export function TransactionForm(props: TransactionFormProps) {
  * desde Inversiones (la base de datos también impide cambiarlos aquí).
  */
 function InvestmentLinkGuard(props: TransactionFormProps & { editing: Transaction }) {
-  const link = useQuery({
-    queryKey: ['inv', 'link', props.editing.id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('investment_transactions').select('investment_id').eq('transaction_id', props.editing.id).maybeSingle()
-      if (error) throw error
-      return data as { investment_id: string } | null
-    },
-  })
+  const link = useInvestmentLink(props.editing.id)
   if (link.isLoading) return null
   if (!link.data) return <TransactionFormInner key={props.editing.id} {...props} />
   return (
     <Modal open onClose={props.onClose} title={props.editing.description}
       footer={<><Button variant="secondary" onClick={props.onClose}>Cerrar</Button>
-        <Link to={`/inversiones/${link.data.investment_id}`} onClick={props.onClose}
+        <Link to={`/inversiones/${link.data}`} onClick={props.onClose}
           className="inline-flex h-11 items-center rounded-xl bg-ink px-4 text-sm font-medium text-white">Ir a la inversión</Link></>}>
       <p className="text-sm text-slate-600">
         Este movimiento de {formatCents(props.editing.amount_cents)} del {formatDate(props.editing.occurred_on)} se creó desde una operación de inversión.
