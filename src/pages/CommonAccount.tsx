@@ -9,7 +9,7 @@ import { Button, Card, EmptyState, ErrorBox, Money, PageLoader, Select, StatCard
 import { useAccounts, useContributions, useTransactions } from '../hooks/data'
 import { monthLong, periodLabel } from '../lib/dates'
 import { memberSeriesColor } from '../lib/members'
-import { formatCents, percent } from '../lib/money'
+import { formatCents, formatPercent } from '../lib/money'
 import { useHousehold } from '../providers/HouseholdProvider'
 import { usePeriod } from '../providers/PeriodProvider'
 import { trendWindow } from './Dashboard'
@@ -118,7 +118,7 @@ export function CommonAccountPage() {
             <p className="mt-4 text-xs text-slate-500">
               {perMember[0].value === perMember[1].value
                 ? 'Habéis aportado lo mismo.'
-                : `${perMember[0].value > perMember[1].value ? perMember[0].label : perMember[1].label} ha aportado ${formatCents(Math.abs(perMember[0].value - perMember[1].value))} más (${percent(Math.max(perMember[0].value, perMember[1].value), totalContrib)} % del total).`}
+                : `${perMember[0].value > perMember[1].value ? perMember[0].label : perMember[1].label} ha aportado ${formatCents(Math.abs(perMember[0].value - perMember[1].value))} más (${formatPercent(Math.max(perMember[0].value, perMember[1].value), totalContrib)} % del total).`}
             </p>
           )}
         </Card>
@@ -149,7 +149,7 @@ export function CommonAccountPage() {
                       <td className="px-5 py-2.5 capitalize">{monthLong(h.month)}</td>
                       {series.map((s) => {
                         const v = (h[s.key] as number) ?? 0
-                        return <td key={s.key} className="px-3 py-2.5 text-right tabular">{formatCents(v)}<span className="ml-1 text-xs text-slate-400">{contrib ? `${percent(v, contrib)} %` : ''}</span></td>
+                        return <td key={s.key} className="px-3 py-2.5 text-right tabular">{formatCents(v)}<span className="ml-1 text-xs text-slate-400">{contrib ? `${formatPercent(v, contrib)} %` : ''}</span></td>
                       })}
                       <td className="px-3 py-2.5 text-right tabular">{formatCents(h.in_other)}</td>
                       <td className="px-3 py-2.5 text-right tabular">{formatCents(h.out)}</td>

@@ -89,3 +89,9 @@ export function percent(part: number, total: number): number {
   if (!total) return 0
   return Math.round((part / total) * 1000) / 10
 }
+
+const pctFmt = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1 })
+/** Porcentaje formateado en español: "51,5" (sin el símbolo) */
+export function formatPercent(part: number, total: number): string {
+  return pctFmt.format(percent(part, total))
+}

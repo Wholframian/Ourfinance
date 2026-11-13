@@ -1,5 +1,5 @@
 import { clsx } from 'clsx'
-import { BarChart3, Home, LineChart, ListOrdered, Plus, Settings, Users } from 'lucide-react'
+import { BarChart3, Home, House, LineChart, ListOrdered, PiggyBank, Plane, Plus, Settings, Target, Users, UtensilsCrossed } from 'lucide-react'
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useHousehold } from '../providers/HouseholdProvider'
@@ -16,12 +16,37 @@ export const NAV = [
   { to: '/ajustes', label: 'Ajustes', icon: Settings },
 ]
 
+/** Módulos de la Fase 2 (menú lateral en escritorio y accesos en Inicio) */
+export const MODULES = [
+  { to: '/casa', label: 'Casa', icon: House, color: '#2a78d6' },
+  { to: '/viajes', label: 'Viajes', icon: Plane, color: '#0891b2' },
+  { to: '/comidas', label: 'Comidas', icon: UtensilsCrossed, color: '#eb6834' },
+  { to: '/presupuestos', label: 'Presupuestos', icon: Target, color: '#6250d6' },
+  { to: '/objetivos', label: 'Objetivos', icon: PiggyBank, color: '#1baf7a' },
+]
+
 export function Logo({ className }: { className?: string }) {
   return (
     <div className={clsx('flex items-center gap-2.5', className)}>
       <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="size-8" />
       <span className="text-[15px] font-bold tracking-tight">OURFINANCE</span>
     </div>
+  )
+}
+
+function SideLink({ to, label, icon: Icon, end }: { to: string; label: string; icon: typeof Home; end?: boolean }) {
+  return (
+    <NavLink
+      to={to}
+      end={end}
+      className={({ isActive }) => clsx(
+        'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
+        isActive ? 'bg-slate-100 text-slate-900' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900',
+      )}
+    >
+      <Icon className="size-[18px]" strokeWidth={1.8} />
+      {label}
+    </NavLink>
   )
 }
 
@@ -43,21 +68,12 @@ export function Layout() {
         >
           <Plus className="size-4" /> Nuevo movimiento
         </button>
-        <nav className="mt-6 flex flex-1 flex-col gap-1">
-          {NAV.map(({ to, label, icon: Icon, end }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              className={({ isActive }) => clsx(
-                'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
-                isActive ? 'bg-slate-100 text-slate-900' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900',
-              )}
-            >
-              <Icon className="size-[18px]" strokeWidth={1.8} />
-              {label}
-            </NavLink>
-          ))}
+        <nav className="mt-6 flex flex-1 flex-col gap-1 overflow-y-auto">
+          {NAV.slice(0, 5).map((item) => <SideLink key={item.to} {...item} />)}
+          <p className="mt-4 mb-1 px-3 text-[11px] font-medium tracking-wide text-slate-400 uppercase">Módulos</p>
+          {MODULES.map((item) => <SideLink key={item.to} {...item} />)}
+          <div className="my-3 border-t border-slate-100" />
+          <SideLink {...NAV[5]} />
         </nav>
         <div className="flex items-center gap-3 rounded-xl px-2 py-2">
           <Avatar name={me?.full_name} color={me?.color} size="md" />

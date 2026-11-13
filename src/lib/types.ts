@@ -160,3 +160,92 @@ export function txSign(type: TransactionType): 1 | -1 | 0 {
   if (type === 'expense') return -1
   return 0
 }
+
+// ---------------------------------------------------------------- Fase 2
+export type Frequency = 'monthly' | 'quarterly' | 'yearly'
+export type TripStatus = 'planned' | 'ongoing' | 'finished' | 'cancelled'
+export type TripExpenseCategory = 'flights' | 'hotels' | 'car_rental' | 'fuel' | 'restaurants' | 'activities' | 'transport' | 'shopping' | 'other'
+export type BudgetPeriod = 'monthly' | 'yearly' | 'custom'
+export type GoalType = 'emergency' | 'travel' | 'housing' | 'investment' | 'other'
+
+export interface RecurringTransaction {
+  id: string
+  household_id: string
+  created_by: string
+  visibility: Visibility
+  type: TransactionType
+  amount_cents: number
+  description: string
+  category_id: string | null
+  subcategory_id: string | null
+  account_id: string | null
+  to_account_id: string | null
+  frequency: Frequency
+  next_due_on: string
+  end_on: string | null
+  is_active: boolean
+  notes: string | null
+}
+
+export interface Trip {
+  id: string
+  household_id: string
+  created_by: string
+  visibility: Visibility
+  name: string
+  destination: string | null
+  start_date: string | null
+  end_date: string | null
+  budget_cents: number | null
+  status: TripStatus
+  notes: string | null
+  trip_participants?: { user_id: string }[]
+}
+
+export interface TripExpense {
+  id: string
+  trip_id: string
+  transaction_id: string
+  trip_category: TripExpenseCategory
+  created_by: string
+}
+
+export interface Budget {
+  id: string
+  household_id: string
+  owner_id: string
+  visibility: Visibility
+  name: string
+  period: BudgetPeriod
+  category_id: string | null
+  trip_id: string | null
+  amount_cents: number
+  start_date: string
+  end_date: string | null
+}
+
+export interface SavingsGoal {
+  id: string
+  household_id: string
+  owner_id: string
+  visibility: Visibility
+  name: string
+  goal_type: GoalType
+  target_cents: number
+  saved_cents: number
+  account_id: string | null
+  target_date: string | null
+  is_achieved: boolean
+}
+
+export const FREQUENCY_LABEL: Record<Frequency, string> = { monthly: 'Mensual', quarterly: 'Trimestral', yearly: 'Anual' }
+export const FREQUENCY_MONTHS: Record<Frequency, number> = { monthly: 1, quarterly: 3, yearly: 12 }
+export const TRIP_STATUS_LABEL: Record<TripStatus, string> = { planned: 'Planificado', ongoing: 'En curso', finished: 'Terminado', cancelled: 'Cancelado' }
+export const TRIP_CATEGORY_LABEL: Record<TripExpenseCategory, string> = {
+  flights: 'Vuelos', hotels: 'Hoteles', car_rental: 'Alquiler de vehículo', fuel: 'Gasolina', restaurants: 'Restaurantes',
+  activities: 'Actividades', transport: 'Transporte', shopping: 'Compras', other: 'Otros',
+}
+export const BUDGET_PERIOD_LABEL: Record<BudgetPeriod, string> = { monthly: 'Mensual', yearly: 'Anual', custom: 'Personalizado' }
+export const GOAL_TYPE_LABEL: Record<GoalType, string> = {
+  emergency: 'Fondo de emergencia', travel: 'Viajes', housing: 'Vivienda', investment: 'Inversiones', other: 'Otro',
+}

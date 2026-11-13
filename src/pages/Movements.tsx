@@ -141,7 +141,7 @@ export function MovementsPage() {
                         </td>
                         <td className="px-4 py-3"><span className="inline-flex items-center gap-2"><Avatar name={author?.full_name} color={author?.color} />{author?.full_name?.split(' ')[0]}</span></td>
                         <td className="px-4 py-3 text-slate-600">{TX_TYPE_LABEL[tx.type]}</td>
-                        <td className="max-w-48 truncate px-4 py-3 text-slate-600">{txAccountsLabel(tx, lookups.accountName)}</td>
+                        <td className="max-w-48 truncate px-4 py-3 text-slate-600">{txAccountsLabel(tx, lookups.accountName, author?.full_name?.split(' ')[0])}</td>
                         <td className="px-4 py-3 text-slate-500">
                           {tx.visibility === 'shared'
                             ? <span className="inline-flex items-center gap-1"><Users className="size-3.5" />Compartido</span>

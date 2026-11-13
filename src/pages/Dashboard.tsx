@@ -1,7 +1,7 @@
 import { Landmark, PiggyBank, TrendingUp, User, Users, Wallet } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { DonutWithTable, GROUP_COLOR, MonthlyBars, NEUTRAL, SERIES, ShareBar, TrendArea } from '../components/charts'
-import { PageHeader } from '../components/Layout'
+import { MODULES, PageHeader } from '../components/Layout'
 import { PeriodFilter } from '../components/PeriodFilter'
 import { TransactionList } from '../components/TransactionList'
 import { Card, ErrorBox, PageLoader, StatCard } from '../components/ui'
@@ -51,6 +51,14 @@ export function DashboardPage() {
         actions={<PeriodFilter />}
       />
       <ErrorBox error={accounts.error ?? summary.error} onRetry={() => { accounts.refetch(); summary.refetch() }} />
+
+      <nav aria-label="Módulos" className="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:hidden">
+        {MODULES.map(({ to, label, icon: Icon, color }) => (
+          <Link key={to} to={to} className="flex shrink-0 items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-medium ring-1 ring-slate-200/70">
+            <Icon className="size-4" style={{ color }} />{label}
+          </Link>
+        ))}
+      </nav>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="col-span-2 lg:col-span-1">

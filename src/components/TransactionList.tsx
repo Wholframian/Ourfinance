@@ -32,9 +32,14 @@ export function useTxLookups() {
   }, [accounts.data, categories.data])
 }
 
-export function txAccountsLabel(tx: Transaction, accountName: (id: string | null) => string | null) {
-  const from = accountName(tx.account_id)
-  const to = accountName(tx.to_account_id)
+export function txAccountsLabel(tx: Transaction, accountName: (id: string | null) => string | null, ownerFirstName?: string) {
+  // Las cuentas personales de tu pareja no son visibles: se muestran como "Cuenta de <nombre>"
+  const name = (id: string | null) => {
+    const n = accountName(id)
+    return n === 'Cuenta privada' && ownerFirstName ? `Cuenta de ${ownerFirstName}` : n
+  }
+  const from = name(tx.account_id)
+  const to = name(tx.to_account_id)
   if (to) return `${from ?? 'Fuera de la app'} → ${to}`
   return from ?? ''
 }
@@ -62,7 +67,7 @@ export function TransactionRow({ tx, onClick }: { tx: Transaction; onClick: () =
             {!!tx.attachments?.length && <Paperclip className="size-3 shrink-0 text-slate-400" aria-label="Con justificante" />}
           </span>
           <span className="mt-0.5 block truncate text-xs text-slate-500">
-            {formatDate(tx.occurred_on)} · {cat?.name ?? TX_TYPE_LABEL[tx.type]} · {txAccountsLabel(tx, accountName)}
+            {formatDate(tx.occurred_on)} · {cat?.name ?? TX_TYPE_LABEL[tx.type]} · {txAccountsLabel(tx, accountName, author?.full_name?.split(' ')[0])}
           </span>
         </span>
         <span className="flex flex-col items-end gap-1">
@@ -109,7 +114,7 @@ export function TransactionDetail({ tx, onClose }: { tx: Transaction | null; onC
     ['Tipo', TX_TYPE_LABEL[tx.type]],
     ['Fecha', formatDate(tx.occurred_on)],
     ['Categoría', [category(tx.category_id)?.name, category(tx.subcategory_id)?.name].filter(Boolean).join(' › ') || '—'],
-    ['Cuenta', txAccountsLabel(tx, accountName) || '—'],
+    ['Cuenta', txAccountsLabel(tx, accountName, author?.full_name?.split(' ')[0]) || '—'],
     ['Visibilidad', <Badge key="v" tone={tx.visibility === 'shared' ? 'brand' : 'slate'}>{tx.visibility === 'shared' ? <Users className="mr-1 size-3" /> : <Lock className="mr-1 size-3" />}{VISIBILITY_LABEL[tx.visibility]}</Badge>],
     ['Registrado por', author?.full_name ?? '—'],
   ]
