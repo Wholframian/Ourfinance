@@ -61,7 +61,7 @@ export default function App() {
       <AuthProvider>
         <HouseholdProvider>
           <PeriodProvider>
-            <BrowserRouter>
+            <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '') || '/'}>
               <Routes>
                 <Route path="/login" element={<PublicOnly><LoginPage /></PublicOnly>} />
                 <Route path="/registro" element={<PublicOnly><RegisterPage /></PublicOnly>} />

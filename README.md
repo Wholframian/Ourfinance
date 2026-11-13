@@ -56,6 +56,17 @@ Variables (`.env.local`):
 
 ## Despliegue
 
+### GitHub Pages (configurado)
+
+El workflow `.github/workflows/deploy.yml` publica la app en `https://wholframian.github.io/Ourfinance/`
+en cada push a `main` (pasa antes las pruebas unitarias). Necesita:
+
+- Settings → Pages → Source: **GitHub Actions**.
+- Settings → Secrets and variables → Actions → **Variables**: `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`.
+- En Supabase → Authentication → URL Configuration: *Site URL* `https://wholframian.github.io/Ourfinance/`.
+
+### Otros hostings
+
 Es una SPA estática. Cualquier hosting estático sirve (Vercel, Netlify, Cloudflare Pages):
 
 - Comando de build: `npm run build` · Carpeta: `dist`

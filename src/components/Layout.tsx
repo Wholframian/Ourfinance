@@ -19,7 +19,7 @@ export const NAV = [
 export function Logo({ className }: { className?: string }) {
   return (
     <div className={clsx('flex items-center gap-2.5', className)}>
-      <img src="/favicon.svg" alt="" className="size-8" />
+      <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="size-8" />
       <span className="text-[15px] font-bold tracking-tight">OURFINANCE</span>
     </div>
   )

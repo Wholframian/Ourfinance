@@ -13,6 +13,7 @@ import { supabase } from '../lib/supabase'
 import { ACCOUNT_KIND_LABEL, type AccountKind, type Category, type Visibility } from '../lib/types'
 import { useAuth } from '../providers/AuthProvider'
 import { useHousehold } from '../providers/HouseholdProvider'
+import { appUrl } from '../lib/url'
 
 export function SettingsPage() {
   return (
@@ -100,7 +101,7 @@ function HouseholdCard() {
       return data as string
     },
     onSuccess: (token) => {
-      setLink(`${window.location.origin}/invitacion/${token}`)
+      setLink(appUrl(`invitacion/${token}`))
       qc.invalidateQueries({ queryKey: ['invitations'] })
     },
   })

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Logo } from '../components/Layout'
 import { Button, ErrorBox, Field, Input } from '../components/ui'
 import { supabase } from '../lib/supabase'
+import { appUrl } from '../lib/url'
 
 export function AuthShell({ title, subtitle, children, footer }: { title: string; subtitle?: string; children: ReactNode; footer?: ReactNode }) {
   return (
@@ -83,7 +84,7 @@ export function RegisterPage() {
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      options: { data: { full_name: name.trim() }, emailRedirectTo: window.location.origin },
+      options: { data: { full_name: name.trim() }, emailRedirectTo: appUrl() },
     })
     setLoading(false)
     if (error) return setError(error)
@@ -131,7 +132,7 @@ export function ForgotPasswordPage() {
     e.preventDefault()
     if (!emailOk(email)) return setError('Introduce un email válido.')
     setLoading(true)
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/nueva-contrasena` })
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: appUrl('nueva-contrasena') })
     setLoading(false)
     if (error) setError(error)
     else setSent(true)
