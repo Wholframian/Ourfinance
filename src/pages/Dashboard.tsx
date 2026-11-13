@@ -1,14 +1,15 @@
 import { Landmark, PiggyBank, TrendingUp, User, Users, Wallet } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { DonutWithTable, GROUP_COLOR, MonthlyBars, NEUTRAL, SERIES, ShareBar, TrendArea } from '../components/charts'
 import { MODULES, PageHeader } from '../components/Layout'
 import { PeriodFilter } from '../components/PeriodFilter'
 import { TransactionList } from '../components/TransactionList'
-import { Card, ErrorBox, Money, PageLoader, StatCard } from '../components/ui'
+import { Card, ErrorBox, PageLoader, StatCard } from '../components/ui'
 import {
   useAccountFlows, useAccounts, useCategoryBreakdown, useMonthlyFlows, useNetWorthSeries, usePeriodSummary, useTransactions,
 } from '../hooks/data'
-import { useHouseholdNetWorth, usePositions } from '../hooks/phase3'
+import { useHouseholdNetWorth, useInvestments, usePositions } from '../hooks/phase3'
 import { addMonths, endOfMonth, periodLabel, startOfMonth } from '../lib/dates'
 import { formatCents } from '../lib/money'
 import { useAuth } from '../providers/AuthProvider'
@@ -36,18 +37,27 @@ export function DashboardPage() {
   const accFlows = useAccountFlows(period.from, period.to)
   const latest = useTransactions({}, 0, 8)
   const positions = usePositions()
+  const investments = useInvestments()
   const joint = useHouseholdNetWorth()
 
   const list = (accounts.data ?? []).filter((a) => !a.is_archived || a.balance_cents !== 0)
   const portfolio = (positions.data ?? []).reduce((s, p) => s + p.value_cents, 0)
   const total = list.reduce((s, a) => s + a.balance_cents, 0) + portfolio
-  const ready = !!accounts.data && !!positions.data
+  const ready = !!accounts.data && !!positions.data && !!investments.data
   const jointRows = joint.data ?? []
   const allSharing = jointRows.length > 0 && jointRows.every((r) => r.is_sharing)
   const jointTotal = jointRows.reduce((s, r) => s + (r.net_worth_cents ?? 0), 0)
-  const personal = list.filter((a) => a.visibility === 'personal' && a.owner_id === user?.id && a.kind !== 'investment')
-  const common = list.filter((a) => a.kind === 'common')
-  const investment = list.filter((a) => a.kind === 'investment')
+  const mine = list.filter((a) => a.visibility === 'personal' && a.owner_id === user?.id)
+  const shared = list.filter((a) => a.visibility === 'shared')
+  const mineCash = mine.filter((a) => a.kind !== 'investment')
+  const mineInv = mine.filter((a) => a.kind === 'investment')
+  const sharedCash = shared.filter((a) => a.kind !== 'investment')
+  const sharedInv = shared.filter((a) => a.kind === 'investment')
+  const visOf = new Map((investments.data ?? []).map((i) => [i.id, i.visibility]))
+  const portfolioOf = (v: 'personal' | 'shared') => (positions.data ?? []).filter((p) => visOf.get(p.investment_id) === v).reduce((t, p) => t + p.value_cents, 0)
+  const flowById = new Map((accFlows.data ?? []).map((f) => [f.account_id, f]))
+  const flowsReady = !!accFlows.data && !!accounts.data
+  const flowSum = (xs: typeof list, k: 'income_cents' | 'expense_cents') => xs.reduce((t, a) => t + (flowById.get(a.id)?.[k] ?? 0), 0)
   const sum = (xs: typeof list) => xs.reduce((s, a) => s + a.balance_cents, 0)
   const s = summary.data
 
@@ -70,30 +80,31 @@ export function DashboardPage() {
         ))}
       </nav>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="col-span-2 lg:col-span-1">
-          <StatCard tone="brand" label="Patrimonio total" icon={<Landmark className="size-3.5" />} cents={ready ? total : undefined}
-            hint={allSharing ? <>Conjunto: <strong className="tabular">{formatCents(jointTotal)}</strong></> : 'Tus cuentas, las compartidas y la cartera'} />
-        </div>
-        <StatCard label="Mis cuentas" icon={<User className="size-3.5" />} cents={accounts.data ? sum(personal) : undefined} hint={`${personal.length} ${personal.length === 1 ? 'cuenta personal' : 'cuentas personales'}`} />
-        <StatCard label="Cuenta común" icon={<Users className="size-3.5" />} cents={accounts.data ? sum(common) : undefined} hint={<Link to="/cuenta-comun" className="underline">Ver detalle</Link>} />
-        <StatCard label="Inversiones" icon={<TrendingUp className="size-3.5" />} cents={ready ? sum(investment) + portfolio : undefined}
-          hint={<Link to="/inversiones" className="underline">{positions.data?.length ? `Cartera ${formatCents(portfolio)}` : 'Ver cartera'}</Link>} />
-        <StatCard label="Ingresos" icon={<Wallet className="size-3.5" />} cents={s?.income_cents} tone="positive" loading={summary.isLoading} />
-        <StatCard label="Gastos" cents={s?.expense_cents} loading={summary.isLoading}
-          hint={s ? `${s.refund_cents ? 'Ya descontados reembolsos' : 'Sin transferencias ni aportaciones'}` : undefined} />
-        <StatCard label="Aportaciones a común" icon={<PiggyBank className="size-3.5" />} cents={s?.contribution_cents} loading={summary.isLoading} hint="Transferencias, no gasto" />
-        <StatCard label="Ahorro" cents={s?.savings_cents} tone={s && s.savings_cents >= 0 ? 'positive' : 'default'} loading={summary.isLoading} hint="Ingresos − gastos" />
-      </div>
+      <StatCard tone="brand" label="Patrimonio total" icon={<Landmark className="size-3.5" />} cents={ready ? total : undefined}
+        hint={<>
+          {allSharing ? <>Conjunto: <strong className="tabular">{formatCents(jointTotal)}</strong> · </> : 'Tus cuentas, las compartidas y la cartera · '}
+          Ahorro del periodo: <strong className="tabular">{s ? formatCents(s.savings_cents) : '…'}</strong>
+        </>} />
 
-      <AccountFlowsCard
-        loading={accFlows.isLoading || !accounts.data}
-        flows={accFlows.data ?? []}
-        groups={[
-          { label: 'Mis cuentas', accounts: list.filter((a) => a.visibility === 'personal' && a.owner_id === user?.id) },
-          { label: 'Compartidas', accounts: list.filter((a) => a.visibility === 'shared') },
-        ]}
-      />
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        <SidePanel title="Lo mío" icon={<User className="size-4" />}>
+          <StatCard label="Mis cuentas" icon={<Wallet className="size-3.5" />} cents={accounts.data ? sum(mineCash) : undefined}
+            hint={`${mineCash.length} ${mineCash.length === 1 ? 'cuenta personal' : 'cuentas personales'}`} />
+          <StatCard label="Mis inversiones" icon={<TrendingUp className="size-3.5" />} cents={ready ? sum(mineInv) + portfolioOf('personal') : undefined}
+            hint={<Link to="/inversiones" className="underline">Ver cartera</Link>} />
+          <StatCard label="Mis ingresos" cents={flowsReady ? flowSum(mineCash, 'income_cents') : undefined} tone="positive" hint="En mis cuentas personales" />
+          <StatCard label="Mis gastos" cents={flowsReady ? flowSum(mineCash, 'expense_cents') : undefined} hint="Pagados con mis cuentas" />
+        </SidePanel>
+        <SidePanel title="Común" icon={<Users className="size-4" />}>
+          <StatCard label="Cuenta común" icon={<Wallet className="size-3.5" />} cents={accounts.data ? sum(sharedCash) : undefined}
+            hint={<Link to="/cuenta-comun" className="underline">Ver detalle</Link>} />
+          <StatCard label="Inversiones comunes" icon={<TrendingUp className="size-3.5" />} cents={ready ? sum(sharedInv) + portfolioOf('shared') : undefined}
+            hint={<Link to="/inversiones" className="underline">Ver cartera</Link>} />
+          <StatCard label="Ingresos comunes" cents={flowsReady ? flowSum(sharedCash, 'income_cents') : undefined} tone="positive"
+            hint={<span className="inline-flex items-center gap-1"><PiggyBank className="size-3.5" />Aportaciones: {s ? formatCents(s.contribution_cents) : '…'}</span>} />
+          <StatCard label="Gastos comunes" cents={flowsReady ? flowSum(sharedCash, 'expense_cents') : undefined} hint="Pagados con la cuenta común" />
+        </SidePanel>
+      </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <Card title="Evolución del patrimonio">
@@ -132,52 +143,12 @@ export function DashboardPage() {
   )
 }
 
-/** Ingresos y gastos del periodo, por cuenta, separando las personales de las compartidas */
-function AccountFlowsCard({ loading, flows, groups }: {
-  loading: boolean
-  flows: { account_id: string; income_cents: number; expense_cents: number }[]
-  groups: { label: string; accounts: { id: string; name: string; color?: string | null }[] }[]
-}) {
-  const byId = new Map(flows.map((f) => [f.account_id, f]))
-  const of = (id: string) => byId.get(id) ?? { income_cents: 0, expense_cents: 0 }
-  const shown = groups.filter((g) => g.accounts.length)
+
+function SidePanel({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
   return (
-    <Card className="mt-6" title="Ingresos y gastos por cuenta">
-      {loading ? <PageLoader /> : !shown.length ? <p className="text-sm text-slate-500">Todavía no hay cuentas.</p> : (
-        <div className="grid gap-6 lg:grid-cols-2">
-          {shown.map((g) => {
-            const inc = g.accounts.reduce((s, a) => s + of(a.id).income_cents, 0)
-            const exp = g.accounts.reduce((s, a) => s + of(a.id).expense_cents, 0)
-            return (
-              <div key={g.label}>
-                <div className="grid grid-cols-[1fr_auto_auto] items-baseline gap-x-4 border-b border-slate-100 pb-2 text-xs font-medium text-slate-500">
-                  <span>{g.label}</span><span className="block w-24 text-right">Ingresos</span><span className="block w-24 text-right">Gastos</span>
-                </div>
-                <ul className="divide-y divide-slate-100">
-                  {g.accounts.map((a) => (
-                    <li key={a.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-x-4 py-2 text-sm">
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span className="size-2.5 shrink-0 rounded-full" style={{ background: a.color ?? '#94a3b8' }} />
-                        <span className="truncate">{a.name}</span>
-                      </span>
-                      <Money cents={of(a.id).income_cents} signed={of(a.id).income_cents ? 1 : 0} className="block w-24 text-right" />
-                      <Money cents={of(a.id).expense_cents} signed={of(a.id).expense_cents > 0 ? -1 : 0} className="block w-24 text-right" />
-                    </li>
-                  ))}
-                </ul>
-                {g.accounts.length > 1 && (
-                  <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 border-t border-slate-200 pt-2 text-sm font-semibold">
-                    <span>Total</span>
-                    <Money cents={inc} signed={inc ? 1 : 0} className="block w-24 text-right" />
-                    <Money cents={exp} signed={exp > 0 ? -1 : 0} className="block w-24 text-right" />
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
-      <p className="mt-4 text-xs text-slate-500">Las transferencias y aportaciones no cuentan: solo mueven dinero entre cuentas. Los gastos ya descuentan devoluciones.</p>
-    </Card>
+    <section className="rounded-2xl bg-slate-100/70 p-3 ring-1 ring-slate-200/60">
+      <h2 className="mb-2 flex items-center gap-2 px-1 text-sm font-semibold text-slate-700">{icon}{title}</h2>
+      <div className="grid grid-cols-2 gap-3">{children}</div>
+    </section>
   )
 }
