@@ -4,6 +4,7 @@ import {
   ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, findPossibleDuplicate, openAttachment, useAccounts, useCategories,
   useDeleteAttachment, useSaveTransaction, type AccountWithBalance, type TxInput,
 } from '../hooks/data'
+import { CategoryOptions, parentCategoriesFor } from './CategoryOptions'
 import { useQueryClient } from '@tanstack/react-query'
 import { useInvestmentLink } from '../hooks/phase3'
 import { supabase } from '../lib/supabase'
@@ -191,16 +192,18 @@ function TransactionFormInner({ open, onClose, editing, duplicateOf, presetType,
   }, [forcedShared, f.visibility])
 
   // ---------------------------------------------------------------- Categorías
-  const catKind = f.type === 'income' ? 'income' : 'expense'
-  const parents = (categoriesQ.data ?? []).filter((c) => !c.parent_id && c.kind === catKind && (!c.is_archived || c.id === f.category_id))
+  const catGroups = parentCategoriesFor(f.type, categoriesQ.data ?? [], f.category_id)
   const children = (categoriesQ.data ?? []).filter((c) => c.parent_id && c.parent_id === f.category_id && (!c.is_archived || c.id === f.subcategory_id))
 
+  // Un ingreso puede usar categorías de gasto; un gasto, nunca una de ingreso
+  const keepsCategory = (type: TransactionType, catId: string) => HAS_CATEGORY.includes(type)
+    && (type === 'income' || (categoriesQ.data ?? []).find((c) => c.id === catId)?.kind !== 'income')
   const changeType = (type: TransactionType) => {
     setF((prev) => ({
       ...prev,
       type,
-      category_id: HAS_CATEGORY.includes(type) && (type === 'income') === (prev.type === 'income') ? prev.category_id : '',
-      subcategory_id: HAS_CATEGORY.includes(type) && (type === 'income') === (prev.type === 'income') ? prev.subcategory_id : '',
+      category_id: keepsCategory(type, prev.category_id) ? prev.category_id : '',
+      subcategory_id: keepsCategory(type, prev.category_id) ? prev.subcategory_id : '',
       description: !prev.description && type === 'contribution' ? 'Aportación cuenta común' : prev.description,
       visibility: type === 'contribution' ? 'shared' : prev.visibility,
     }))
@@ -345,7 +348,7 @@ function TransactionFormInner({ open, onClose, editing, duplicateOf, presetType,
             <Field label="Categoría" htmlFor="tx-cat">
               <Select id="tx-cat" value={f.category_id} onChange={(e) => { set('category_id', e.target.value); set('subcategory_id', '') }}>
                 <option value="">Sin categoría</option>
-                {parents.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                <CategoryOptions groups={catGroups} />
               </Select>
             </Field>
             <Field label="Subcategoría" htmlFor="tx-sub">
