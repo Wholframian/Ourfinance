@@ -141,9 +141,9 @@ export function TrendArea({ data, dataKey, label, color = SERIES[0], height = 22
 export interface Slice { name: string; value: number; color: string }
 
 /** Donut con la tabla de valores al lado (accesible: la identidad no depende solo del color). */
-export function DonutWithTable({ slices, totalLabel = 'Total', onSelect }: { slices: Slice[]; totalLabel?: string; onSelect?: (s: Slice) => void }) {
+export function DonutWithTable({ slices, totalLabel = 'Total', onSelect, emptyText = 'Sin gastos en este periodo' }: { slices: Slice[]; totalLabel?: string; onSelect?: (s: Slice) => void; emptyText?: string }) {
   const positive = slices.filter((s) => s.value > 0)
-  if (!positive.length) return <EmptyState title="Sin gastos en este periodo" />
+  if (!positive.length) return <EmptyState title={emptyText} />
   const total = positive.reduce((a, s) => a + s.value, 0)
   return (
     <div className="grid items-center gap-4 sm:grid-cols-[180px_1fr]">
@@ -204,5 +204,36 @@ export function ShareBar({ parts }: { parts: { label: string; value: number; col
         ))}
       </ul>
     </div>
+  )
+}
+
+const pctAxis = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 })
+const pctTip = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1 })
+
+/** Barras mensuales de un porcentaje (p. ej. tasa de ahorro). Los meses sin dato quedan vacíos. */
+export function PercentBars({ data, dataKey, label, color = SERIES[2], height = 220 }: {
+  data: Record<string, number | string | null>[]; dataKey: string; label: string; color?: string; height?: number
+}) {
+  if (!data.some((d) => d[dataKey] !== null)) return <EmptyState title="Sin ingresos en este periodo" />
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart data={data} barCategoryGap="30%">
+        <CartesianGrid vertical={false} stroke="#eef2f6" />
+        <XAxis dataKey="month" tickFormatter={monthShort} {...axis} />
+        <YAxis tickFormatter={(v) => `${pctAxis.format(v)} %`} width={48} {...axis} />
+        <Tooltip cursor={{ fill: '#f1f5f9' }} content={({ active, payload, label: l }) => {
+          if (!active || !payload?.length || payload[0].value == null) return null
+          return (
+            <div className="rounded-xl bg-white px-3 py-2 text-xs shadow-lg ring-1 ring-slate-200">
+              <p className="mb-1 font-medium capitalize text-slate-900">{monthShort(String(l))}</p>
+              <p className="text-slate-600">{label}: <span className="font-medium text-slate-900 tabular">{pctTip.format(Number(payload[0].value))} %</span></p>
+            </div>
+          )
+        }} />
+        <Bar dataKey={dataKey} name={label} radius={[4, 4, 0, 0]} maxBarSize={28}>
+          {data.map((d, i) => <Cell key={i} fill={Number(d[dataKey]) < 0 ? SERIES[7] : color} />)}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
   )
 }

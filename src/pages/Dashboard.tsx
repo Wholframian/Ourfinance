@@ -8,7 +8,9 @@ import { Card, ErrorBox, PageLoader, StatCard } from '../components/ui'
 import {
   useAccounts, useCategoryBreakdown, useMonthlyFlows, useNetWorthSeries, usePeriodSummary, useTransactions,
 } from '../hooks/data'
+import { useHouseholdNetWorth, usePositions } from '../hooks/phase3'
 import { addMonths, endOfMonth, periodLabel, startOfMonth } from '../lib/dates'
+import { formatCents } from '../lib/money'
 import { useAuth } from '../providers/AuthProvider'
 import { useHousehold } from '../providers/HouseholdProvider'
 import { usePeriod } from '../providers/PeriodProvider'
@@ -32,9 +34,16 @@ export function DashboardPage() {
   const netWorth = useNetWorthSeries(win.from, win.to)
   const cats = useCategoryBreakdown(period.from, period.to)
   const latest = useTransactions({}, 0, 8)
+  const positions = usePositions()
+  const joint = useHouseholdNetWorth()
 
   const list = (accounts.data ?? []).filter((a) => !a.is_archived || a.balance_cents !== 0)
-  const total = list.reduce((s, a) => s + a.balance_cents, 0)
+  const portfolio = (positions.data ?? []).reduce((s, p) => s + p.value_cents, 0)
+  const total = list.reduce((s, a) => s + a.balance_cents, 0) + portfolio
+  const ready = !!accounts.data && !!positions.data
+  const jointRows = joint.data ?? []
+  const allSharing = jointRows.length > 0 && jointRows.every((r) => r.is_sharing)
+  const jointTotal = jointRows.reduce((s, r) => s + (r.net_worth_cents ?? 0), 0)
   const personal = list.filter((a) => a.visibility === 'personal' && a.owner_id === user?.id && a.kind !== 'investment')
   const common = list.filter((a) => a.kind === 'common')
   const investment = list.filter((a) => a.kind === 'investment')
@@ -62,13 +71,13 @@ export function DashboardPage() {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="col-span-2 lg:col-span-1">
-          <StatCard tone="brand" label="Patrimonio total" icon={<Landmark className="size-3.5" />} cents={accounts.data ? total : undefined}
-            hint="Suma de tus cuentas y las compartidas" />
+          <StatCard tone="brand" label="Patrimonio total" icon={<Landmark className="size-3.5" />} cents={ready ? total : undefined}
+            hint={allSharing ? <>Conjunto: <strong className="tabular">{formatCents(jointTotal)}</strong></> : 'Tus cuentas, las compartidas y la cartera'} />
         </div>
         <StatCard label="Mis cuentas" icon={<User className="size-3.5" />} cents={accounts.data ? sum(personal) : undefined} hint={`${personal.length} ${personal.length === 1 ? 'cuenta personal' : 'cuentas personales'}`} />
         <StatCard label="Cuenta común" icon={<Users className="size-3.5" />} cents={accounts.data ? sum(common) : undefined} hint={<Link to="/cuenta-comun" className="underline">Ver detalle</Link>} />
-        <StatCard label="Inversiones" icon={<TrendingUp className="size-3.5" />} cents={accounts.data ? sum(investment) : undefined}
-          hint={investment.length ? 'Saldo en cuentas de inversión' : 'Sin cuentas de inversión'} />
+        <StatCard label="Inversiones" icon={<TrendingUp className="size-3.5" />} cents={ready ? sum(investment) + portfolio : undefined}
+          hint={<Link to="/inversiones" className="underline">{positions.data?.length ? `Cartera ${formatCents(portfolio)}` : 'Ver cartera'}</Link>} />
         <StatCard label="Ingresos" icon={<Wallet className="size-3.5" />} cents={s?.income_cents} tone="positive" loading={summary.isLoading} />
         <StatCard label="Gastos" cents={s?.expense_cents} loading={summary.isLoading}
           hint={s ? `${s.refund_cents ? 'Ya descontados reembolsos' : 'Sin transferencias ni aportaciones'}` : undefined} />

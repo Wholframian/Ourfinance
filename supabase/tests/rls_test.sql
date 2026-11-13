@@ -417,5 +417,173 @@ do $$ begin
   raise notice 'OK 23 · Borrar un gasto de viaje elimina el enlace';
 end $$;
 
+-- =============================================================== Fase 3
+-- Cartera: compra, dividendo, valoración y venta de un ETF personal de A
+:as_a
+\o /dev/null
+select set_config('test.a1_before', (select balance_cents::text from public.account_balances(t.get('hid')) where account_id = t.get('a1')), false);
+select set_config('test.inc_before', (select income_cents::text from public.period_summary(t.get('hid'), '2026-10-01', '2026-10-31')), false);
+select set_config('test.exp_before', (select expense_cents::text from public.period_summary(t.get('hid'), '2026-10-01', '2026-10-31')), false);
+with x as (insert into public.investments (household_id, owner_id, visibility, name, asset_type, account_id)
+  values (t.get('hid'), t.get('hid'), 'personal', 'MSCI World', 'etf', t.get('a1')) returning id)
+select t.put('etf', id) from x;
+select t.put('op_buy', public.record_investment_operation(t.get('etf'), 'buy', '2026-10-01', null, 10, 50, 2, t.get('a1')));
+select public.record_investment_operation(t.get('etf'), 'dividend', '2026-10-10', 1500, null, null, 0, t.get('a1'));
+select public.record_investment_operation(t.get('etf'), 'valuation', '2026-10-15', null, null, 60);
+select public.record_investment_operation(t.get('etf'), 'sell', '2026-10-20', null, 4, 62, 1, t.get('a1'));
+\o
+do $$
+declare p record; bal bigint; s record;
+begin
+  select * into p from public.investment_positions(t.get('hid')) where investment_id = t.get('etf');
+  if p.units <> 6 or p.cost_cents <> 30001 or p.value_cents <> 37200 or p.realized_cents <> 4798
+     or p.income_cents <> 1500 or p.contributed_cents <> 50002 or p.withdrawn_cents <> 24799
+     or p.total_return_cents <> 13497 then
+    raise exception 'FALLO: posición %', row_to_json(p);
+  end if;
+  select balance_cents into bal from public.account_balances(t.get('hid')) where account_id = t.get('a1');
+  if bal <> current_setting('test.a1_before')::bigint - 50002 + 1500 + 24799 then
+    raise exception 'FALLO: saldo de la cuenta tras operar (%)', bal;
+  end if;
+  select * into s from public.period_summary(t.get('hid'), '2026-10-01', '2026-10-31');
+  if s.expense_cents <> current_setting('test.exp_before')::bigint then raise exception 'FALLO: comprar o vender contó como gasto'; end if;
+  if s.income_cents <> current_setting('test.inc_before')::bigint + 1500 then raise exception 'FALLO: el dividendo no cuenta como ingreso'; end if;
+  if (select units from public.investments where id = t.get('etf')) <> 6
+     or (select current_value_cents from public.investments where id = t.get('etf')) <> 37200 then
+    raise exception 'FALLO: resumen de la inversión no actualizado';
+  end if;
+  raise notice 'OK 24 · Cartera: coste medio, plusvalía, dividendos y saldo de caja cuadran (sin contar como gasto)';
+end $$;
+
+do $$ begin
+  begin
+    perform public.record_investment_operation(t.get('etf'), 'sell', '2026-10-25', null, 7, 60, 0, t.get('a1'));
+    raise exception 'FALLO: vendió más unidades de las que tiene';
+  exception when others then if sqlerrm like 'FALLO%' then raise; end if; end;
+  begin
+    update public.transactions set amount_cents = 1 where id = (select transaction_id from public.investment_transactions where id = t.get('op_buy'));
+    raise exception 'FALLO: editó el movimiento de caja de una operación';
+  exception when others then if sqlerrm like 'FALLO%' then raise; end if; end;
+  begin
+    delete from public.transactions where id = (select transaction_id from public.investment_transactions where id = t.get('op_buy'));
+    raise exception 'FALLO: borró el movimiento de caja de una operación';
+  exception when others then if sqlerrm like 'FALLO%' then raise; end if; end;
+  begin
+    update public.investments set visibility = 'shared' where id = t.get('etf');
+    raise exception 'FALLO: cambió la visibilidad de una inversión con operaciones';
+  exception when others then if sqlerrm like 'FALLO%' then raise; end if; end;
+  begin
+    insert into public.investments (household_id, owner_id, visibility, name, asset_type, account_id)
+    values (t.get('hid'), t.get('hid'), 'personal', 'Mal', 'stock', t.get('common'));
+    raise exception 'FALLO: inversión personal con cuenta compartida';
+  exception when others then if sqlerrm like 'FALLO%' then raise; end if; end;
+  begin
+    insert into public.investments (household_id, owner_id, visibility, name, asset_type, account_id)
+    values (t.get('hid'), t.get('hid'), 'personal', 'Ajena', 'stock', t.get('b1'));
+    raise exception 'FALLO: inversión con la cuenta personal de B';
+  exception when others then if sqlerrm like 'FALLO%' then raise; end if; end;
+  raise notice 'OK 25 · No se puede vender de más, ni tocar la caja de una operación, ni usar cuentas no válidas';
+end $$;
+
+-- Depósito compartido financiado desde la cuenta común
+\o /dev/null
+with x as (insert into public.investments (household_id, owner_id, visibility, name, asset_type, account_id)
+  values (t.get('hid'), t.get('hid'), 'shared', 'Depósito 12 meses', 'deposit', t.get('common')) returning id)
+select t.put('dep', id) from x;
+select public.record_investment_operation(t.get('dep'), 'buy', '2026-10-05', 30000, null, null, 0, t.get('common'));
+select public.record_investment_operation(t.get('dep'), 'valuation', '2026-10-31', 30300);
+\o
+:as_b
+do $$
+declare p record;
+begin
+  if exists (select 1 from public.investments where id = t.get('etf')) then raise exception 'FALLO: B ve la inversión personal de A'; end if;
+  if exists (select 1 from public.investment_transactions where investment_id = t.get('etf')) then raise exception 'FALLO: B ve operaciones de A'; end if;
+  if exists (select 1 from public.transactions where description like '%MSCI%') then raise exception 'FALLO: B ve la caja de la inversión de A'; end if;
+  if (select count(*) from public.investment_positions(t.get('hid'))) <> 1 then raise exception 'FALLO: B ve posiciones ajenas'; end if;
+  select * into p from public.investment_positions(t.get('hid')) where investment_id = t.get('dep');
+  if p.value_cents <> 30300 or p.total_return_cents <> 300 then raise exception 'FALLO: depósito compartido %', row_to_json(p); end if;
+  if not exists (select 1 from public.transactions where description = 'Compra · Depósito 12 meses' and visibility = 'shared') then
+    raise exception 'FALLO: B no ve el movimiento compartido del depósito';
+  end if;
+  raise notice 'OK 26 · B ve el depósito compartido (y su caja) pero no la cartera personal de A';
+end $$;
+:as_c
+do $$ begin
+  if (select count(*) from public.investments) + (select count(*) from public.investment_transactions) <> 0 then raise exception 'FALLO: C ve inversiones'; end if;
+  if (select count(*) from public.investment_positions(t.get('hid'))) <> 0 then raise exception 'FALLO: C ve posiciones'; end if;
+  raise notice 'OK 27 · Un externo no ve inversiones';
+end $$;
+
+-- Patrimonio = cuentas + cartera
+:as_a
+do $$
+declare nw bigint; expected bigint;
+begin
+  select net_worth_cents into nw from public.net_worth_series(t.get('hid'), '2026-10-01', '2026-10-31');
+  expected := (select sum(balance_cents) from public.account_balances(t.get('hid'), '2026-10-31'))
+            + (select sum(value_cents) from public.investment_positions(t.get('hid'), '2026-10-31'));
+  if nw <> expected then raise exception 'FALLO: patrimonio % <> %', nw, expected; end if;
+  if (select sum(value_cents) from public.net_worth_breakdown(t.get('hid'), '2026-10-31')) <> expected then raise exception 'FALLO: desglose del patrimonio'; end if;
+  raise notice 'OK 28 · El patrimonio suma cuentas y valor de la cartera';
+end $$;
+
+-- Patrimonio conjunto opcional
+do $$
+declare b_nw bigint; a_nw bigint;
+begin
+  select net_worth_cents into b_nw from public.household_net_worth(t.get('hid')) where user_id = 'bbbbbbbb-0000-0000-0000-000000000002';
+  if b_nw is not null then raise exception 'FALLO: A ve el patrimonio de B sin permiso'; end if;
+  select net_worth_cents into a_nw from public.household_net_worth(t.get('hid')) where user_id = 'aaaaaaaa-0000-0000-0000-000000000001';
+  if a_nw is null then raise exception 'FALLO: A no ve su propio patrimonio'; end if;
+  if exists (select 1 from public.household_net_worth_series(t.get('hid'), '2026-10-01', '2026-11-30')) then
+    raise exception 'FALLO: serie conjunta sin que todos compartan';
+  end if;
+  perform public.set_net_worth_sharing(t.get('hid'), true);
+  raise notice 'OK 29 · Sin activarlo, nadie ve el total del otro';
+end $$;
+:as_b
+do $$
+declare a_nw bigint; b_expected bigint;
+begin
+  select net_worth_cents into a_nw from public.household_net_worth(t.get('hid')) where user_id = 'aaaaaaaa-0000-0000-0000-000000000001';
+  if a_nw is null then raise exception 'FALLO: B no ve el total que A comparte'; end if;
+  perform public.set_net_worth_sharing(t.get('hid'), true);
+  -- B no puede tocar el permiso de A directamente
+  update public.household_members set share_net_worth = false where user_id = 'aaaaaaaa-0000-0000-0000-000000000001';
+  if not (select share_net_worth from public.household_members where user_id = 'aaaaaaaa-0000-0000-0000-000000000001') then
+    raise exception 'FALLO: B cambió el permiso de A';
+  end if;
+  select sum(balance_cents) into b_expected from public.account_balances(t.get('hid')) b
+    join public.accounts a on a.id = b.account_id where a.visibility = 'personal';
+  if (select net_worth_cents from public.household_net_worth(t.get('hid')) where user_id = 'bbbbbbbb-0000-0000-0000-000000000002') <> b_expected then
+    raise exception 'FALLO: patrimonio personal de B';
+  end if;
+  if (select count(*) from public.household_net_worth_series(t.get('hid'), '2026-10-01', '2026-11-30')) <> 6 then
+    raise exception 'FALLO: serie conjunta (2 meses × 2 miembros + compartido)';
+  end if;
+  raise notice 'OK 30 · Con los dos activados se ve el total conjunto, sin ver cuentas ajenas';
+end $$;
+:as_c
+do $$ begin
+  begin
+    perform public.household_net_worth(t.get('hid'));
+    raise exception 'FALLO: C consultó el patrimonio del espacio';
+  exception when others then if sqlerrm like 'FALLO%' then raise; end if; end;
+  raise notice 'OK 31 · Un externo no puede consultar el patrimonio conjunto';
+end $$;
+
+-- Borrar una operación borra su movimiento de caja
+:as_a
+do $$
+declare tx uuid;
+begin
+  select transaction_id into tx from public.investment_transactions where id = t.get('op_buy');
+  delete from public.investment_transactions where id = t.get('op_buy');
+  if exists (select 1 from public.transactions where id = tx) then raise exception 'FALLO: quedó el movimiento de caja'; end if;
+  if (select units from public.investments where id = t.get('etf')) <> 0 then raise exception 'FALLO: unidades no recalculadas'; end if;
+  raise notice 'OK 32 · Borrar una operación elimina su caja y recalcula la posición';
+end $$;
+
 reset role;
 \echo 'TODAS LAS PRUEBAS DE RLS SUPERADAS'

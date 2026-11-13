@@ -9,7 +9,7 @@ import { PeriodProvider } from './providers/PeriodProvider'
 import { ForgotPasswordPage, LoginPage, NewPasswordPage, RegisterPage } from './pages/AuthPages'
 import { CommonAccountPage } from './pages/CommonAccount'
 import { DashboardPage } from './pages/Dashboard'
-import { InvestmentsPage } from './pages/Investments'
+import { InvestmentDetailPage, InvestmentsPage } from './pages/Investments'
 import { MovementsPage } from './pages/Movements'
 import { AcceptInvitePage, OnboardingPage, readPendingInvite } from './pages/Onboarding'
 import { SettingsPage } from './pages/Settings'
@@ -78,6 +78,7 @@ export default function App() {
                   <Route path="movimientos" element={<MovementsPage />} />
                   <Route path="cuenta-comun" element={<CommonAccountPage />} />
                   <Route path="inversiones" element={<InvestmentsPage />} />
+                  <Route path="inversiones/:id" element={<InvestmentDetailPage />} />
                   <Route path="estadisticas" element={<StatsPage />} />
                   <Route path="ajustes" element={<SettingsPage />} />
                   <Route path="casa" element={<HousePage />} />

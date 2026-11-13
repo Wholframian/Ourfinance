@@ -69,7 +69,7 @@ inversión: cambia la composición del patrimonio pero no es consumo.
 
 * **Gasto** = `expense` − `refund`. **Ahorro** = Ingresos − Gasto.
 * **Saldo de cuenta** = saldo inicial + efecto de todos sus movimientos.
-* **Patrimonio** = suma de saldos de las cuentas visibles (en Fase 3 se sumará la valoración de la cartera).
+* **Patrimonio** = suma de saldos de las cuentas visibles + valor de las inversiones visibles.
 
 ## 3. Seguridad (RLS)
 
@@ -96,7 +96,7 @@ Reglas aplicadas en la base de datos:
 8. Anti-duplicados: `client_request_id` único (idempotencia ante doble clic o reintentos) y
    aviso en el formulario si ya existe un movimiento igual.
 
-Las pruebas están en `supabase/tests/rls_test.sql` (15 escenarios con tres usuarios).
+Las pruebas están en `supabase/tests/rls_test.sql` (32 escenarios con tres usuarios).
 
 ## 4. Invitación de la pareja
 
@@ -129,7 +129,7 @@ src/
 |---|---|---|
 | 1 | Auth, espacio, invitación, dashboard, movimientos, personales/compartidos, cuenta común, gráficas básicas | ✅ |
 | 2 | Casa (recurrentes), viajes, comidas, presupuestos, objetivos | ✅ |
-| 3 | Inversiones, patrimonio neto, rentabilidad, analítica avanzada, exportación | ✅ tablas ya creadas |
+| 3 | Inversiones, patrimonio neto, rentabilidad, analítica avanzada, exportación | ✅ |
 
 ### Fase 2: reglas añadidas (migración 0006)
 
@@ -137,6 +137,31 @@ src/
 * **Viajes**: `trip_expenses` enlaza movimientos reales con un viaje y su tipo de gasto (vuelos, hotel…), sin duplicar importes. `transactions.trip_id` se sincroniza por trigger. En un viaje compartido todos sus gastos son compartidos, para que el total sea el mismo para los dos.
 * **Presupuestos**: `budget_progress` calcula lo consumido en el periodo vigente. Compartido suma gastos compartidos; personal, solo los tuyos; de viaje, los gastos del viaje. Gasto = gastos − reembolsos.
 * **Objetivos**: progreso manual o, si se vincula una cuenta, su saldo real.
+
+### Fase 3: reglas añadidas (migración 0007)
+
+* **Cartera**: cada `investments` es una posición; su estado (unidades, coste medio, valor, plusvalía realizada,
+  rentas y rentabilidad) lo calcula `investment_positions` a partir de `investment_transactions`. Nada se escribe a mano.
+* **Operaciones** (`record_investment_operation`, SECURITY INVOKER) crean la operación y su movimiento de caja en una
+  sola transacción:
+
+  | Operación | Movimiento de caja | ¿Gasto/ingreso? |
+  |---|---|---|
+  | Compra / aportación | `investment` sale de la cuenta (importe + comisión) | No |
+  | Venta / retirada | `investment` entra en la cuenta (importe − comisión) | No |
+  | Dividendo / intereses | `income` (Intereses y dividendos) | Ingreso |
+  | Comisión suelta | `investment` sale de la cuenta | No (resta rentabilidad) |
+  | Valoración | ninguno | No |
+
+  `investment` admite ahora un solo lado (cuenta ↔ cartera). Ese movimiento solo se cambia o borra desde Inversiones
+  (trigger `tx_investment_guard`); borrar la operación borra su caja.
+* **Rentabilidad** = valor + retirado + rentas − comisiones − aportado (sobre lo aportado; no es TIR).
+* **Patrimonio conjunto opcional**: `household_members.share_net_worth`. Cada miembro activa el suyo con
+  `set_net_worth_sharing`; `household_net_worth` (SECURITY DEFINER) devuelve solo el **total** personal de quien lo
+  comparte, nunca cuentas ni movimientos. La serie conjunta solo existe si comparten todos.
+* **Analítica**: `net_worth_breakdown`, `expense_by_payer`, `top_subcategories`; tasa de ahorro en el cliente.
+* **Exportación**: CSV (separador `;`, coma decimal, BOM) y Excel con hojas Movimientos, Cuentas, Inversiones y
+  Operaciones. Se genera en el navegador con lo que la RLS deja ver.
 
 Las APIs de cotizaciones se integrarán con una Edge Function que use `investments.quote_source`
 y `quote_symbol` y escriba `current_value_cents` (las claves de la API vivirán en secretos de Supabase).
