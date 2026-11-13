@@ -4,10 +4,12 @@ import {
   ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, findPossibleDuplicate, openAttachment, useAccounts, useCategories,
   useDeleteAttachment, useSaveTransaction, type AccountWithBalance, type TxInput,
 } from '../hooks/data'
+import { useQueryClient } from '@tanstack/react-query'
+import { getTripLink, setTripLink, useTrips } from '../hooks/phase2'
 import { formatDate, isValidISODate, todayISO } from '../lib/dates'
 import { errorMessage } from '../lib/errors'
 import { centsToInput, formatCents, parseAmountToCents } from '../lib/money'
-import { TX_TYPE_LABEL, type Transaction, type TransactionType, type Visibility } from '../lib/types'
+import { TRIP_CATEGORY_LABEL, TX_TYPE_LABEL, type Transaction, type TransactionType, type TripExpenseCategory, type Visibility } from '../lib/types'
 import { useAuth } from '../providers/AuthProvider'
 import { useHouseholdId } from '../providers/HouseholdProvider'
 import { Button, ErrorBox, Field, Input, Modal, Segmented, Select, Textarea } from './ui'
@@ -21,6 +23,8 @@ export interface TransactionFormProps {
   duplicateOf?: Transaction | null
   /** Tipo preseleccionado para un movimiento nuevo */
   presetType?: TransactionType
+  /** Viaje preseleccionado para un gasto nuevo */
+  presetTripId?: string
 }
 
 const TYPES: TransactionType[] = ['expense', 'income', 'contribution', 'transfer', 'investment', 'refund']
@@ -39,6 +43,8 @@ interface FormState {
   visibility: Visibility
   tags: string
   notes: string
+  trip_id: string
+  trip_category: TripExpenseCategory
 }
 
 function initialState(src: Transaction | null | undefined, presetType: TransactionType | undefined, isDuplicate: boolean): FormState {
@@ -55,23 +61,25 @@ function initialState(src: Transaction | null | undefined, presetType: Transacti
       visibility: src.visibility,
       tags: src.tags.join(', '),
       notes: src.notes ?? '',
+      trip_id: (src as Transaction & { trip_id?: string | null }).trip_id ?? '',
+      trip_category: 'other',
     }
   }
   const type = presetType ?? 'expense'
   return {
     type, amount: '', occurred_on: todayISO(), description: type === 'contribution' ? 'Aportación cuenta común' : '',
     category_id: '', subcategory_id: '', account_id: '', to_account_id: '',
-    visibility: type === 'contribution' ? 'shared' : 'personal', tags: '', notes: '',
+    visibility: type === 'contribution' ? 'shared' : 'personal', tags: '', notes: '', trip_id: '', trip_category: 'other',
   }
 }
 
 export function TransactionForm(props: TransactionFormProps) {
   // Se vuelve a montar cada vez que se abre: estado limpio y nueva clave de idempotencia
   if (!props.open) return null
-  return <TransactionFormInner key={(props.editing?.id ?? props.duplicateOf?.id ?? 'new') + (props.presetType ?? '')} {...props} />
+  return <TransactionFormInner key={(props.editing?.id ?? props.duplicateOf?.id ?? 'new') + (props.presetType ?? '') + (props.presetTripId ?? '')} {...props} />
 }
 
-function TransactionFormInner({ open, onClose, editing, duplicateOf, presetType }: TransactionFormProps) {
+function TransactionFormInner({ open, onClose, editing, duplicateOf, presetType, presetTripId }: TransactionFormProps) {
   const hid = useHouseholdId()
   const { user } = useAuth()
   const accountsQ = useAccounts()
@@ -79,7 +87,23 @@ function TransactionFormInner({ open, onClose, editing, duplicateOf, presetType 
   const save = useSaveTransaction()
   const delAttachment = useDeleteAttachment()
 
-  const [f, setF] = useState<FormState>(() => initialState(editing ?? duplicateOf, presetType, !!duplicateOf))
+  const tripsQ = useTrips()
+  const qc = useQueryClient()
+  const [f, setF] = useState<FormState>(() => ({
+    ...initialState(editing ?? duplicateOf, presetType, !!duplicateOf),
+    ...(presetTripId ? { trip_id: presetTripId, visibility: 'shared' as Visibility } : {}),
+  }))
+
+  // Categoría del viaje del movimiento que se edita o duplica
+  useEffect(() => {
+    const src = editing ?? duplicateOf
+    if (!src?.id) return
+    let cancelled = false
+    getTripLink(src.id).then((link) => {
+      if (!cancelled && link) setF((p) => ({ ...p, trip_id: link.trip_id, trip_category: link.trip_category }))
+    }).catch(() => undefined)
+    return () => { cancelled = true }
+  }, [editing, duplicateOf])
   const [file, setFile] = useState<File | null>(null)
   const [errors, setErrors] = useState<Partial<Record<keyof FormState | 'file', string>>>({})
   const [submitError, setSubmitError] = useState<unknown>(null)
@@ -128,7 +152,10 @@ function TransactionFormInner({ open, onClose, editing, duplicateOf, presetType 
 
   // Un movimiento que toca una cuenta compartida debe ser compartido (regla de la base de datos)
   const touchesShared = [f.account_id, f.to_account_id].some((id) => id && accById.get(id)?.visibility === 'shared')
-  const forcedShared = touchesShared || f.type === 'contribution'
+  const trips = (tripsQ.data ?? []).filter((t) => t.status !== 'cancelled' || t.id === f.trip_id)
+  const selectedTrip = trips.find((t) => t.id === f.trip_id)
+  const canHaveTrip = f.type === 'expense' || f.type === 'refund'
+  const forcedShared = touchesShared || f.type === 'contribution' || (canHaveTrip && selectedTrip?.visibility === 'shared')
   useEffect(() => {
     if (forcedShared && f.visibility !== 'shared') setF((p) => ({ ...p, visibility: 'shared' }))
   }, [forcedShared, f.visibility])
@@ -205,7 +232,10 @@ function TransactionFormInner({ open, onClose, editing, duplicateOf, presetType 
           return
         }
       }
-      await save.mutateAsync({ id: editing?.id, input, file })
+      const txId = await save.mutateAsync({ id: editing?.id, input, file })
+      if (canHaveTrip && f.trip_id) await setTripLink(txId, { tripId: f.trip_id, category: f.trip_category })
+      else if (editing) await setTripLink(txId, null)
+      qc.invalidateQueries({ queryKey: ['tx'] })
       onClose()
     } catch (err) {
       // Si la clave de idempotencia ya existe, el movimiento ya se guardó (doble envío)
@@ -285,6 +315,24 @@ function TransactionFormInner({ open, onClose, editing, duplicateOf, presetType 
           </div>
         )}
 
+        {canHaveTrip && trips.length > 0 && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Viaje" htmlFor="tx-trip">
+              <Select id="tx-trip" value={f.trip_id} onChange={(e) => set('trip_id', e.target.value)}>
+                <option value="">Ninguno</option>
+                {trips.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </Select>
+            </Field>
+            {f.trip_id && (
+              <Field label="Tipo de gasto del viaje" htmlFor="tx-tripcat">
+                <Select id="tx-tripcat" value={f.trip_category} onChange={(e) => set('trip_category', e.target.value as TripExpenseCategory)}>
+                  {Object.entries(TRIP_CATEGORY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </Select>
+              </Field>
+            )}
+          </div>
+        )}
+
         {noAccounts ? (
           <ErrorBox error="Primero crea una cuenta en Ajustes → Cuentas." />
         ) : (
@@ -309,7 +357,7 @@ function TransactionFormInner({ open, onClose, editing, duplicateOf, presetType 
         <Field
           label="Visibilidad"
           hint={forcedShared
-            ? 'Los movimientos de la cuenta común y las aportaciones siempre son compartidos.'
+            ? 'Los movimientos de cuentas compartidas, las aportaciones y los gastos de viajes compartidos siempre son compartidos.'
             : f.visibility === 'personal' ? 'Solo tú podrás verlo.' : 'Lo veréis los dos.'}
         >
           <Segmented

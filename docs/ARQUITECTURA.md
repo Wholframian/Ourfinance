@@ -128,8 +128,15 @@ src/
 | Fase | Contenido | Esquema |
 |---|---|---|
 | 1 | Auth, espacio, invitación, dashboard, movimientos, personales/compartidos, cuenta común, gráficas básicas | ✅ |
-| 2 | Casa (recurrentes), viajes, comidas, presupuestos, objetivos | ✅ tablas ya creadas |
+| 2 | Casa (recurrentes), viajes, comidas, presupuestos, objetivos | ✅ |
 | 3 | Inversiones, patrimonio neto, rentabilidad, analítica avanzada, exportación | ✅ tablas ya creadas |
+
+### Fase 2: reglas añadidas (migración 0006)
+
+* **Recurrentes**: `register_recurring` crea la cuota pendiente como movimiento normal (misma RLS y validaciones) y avanza `next_due_on`. Un índice único `(recurring_id, occurred_on)` impide registrar dos veces la misma cuota.
+* **Viajes**: `trip_expenses` enlaza movimientos reales con un viaje y su tipo de gasto (vuelos, hotel…), sin duplicar importes. `transactions.trip_id` se sincroniza por trigger. En un viaje compartido todos sus gastos son compartidos, para que el total sea el mismo para los dos.
+* **Presupuestos**: `budget_progress` calcula lo consumido en el periodo vigente. Compartido suma gastos compartidos; personal, solo los tuyos; de viaje, los gastos del viaje. Gasto = gastos − reembolsos.
+* **Objetivos**: progreso manual o, si se vincula una cuenta, su saldo real.
 
 Las APIs de cotizaciones se integrarán con una Edge Function que use `investments.quote_source`
 y `quote_symbol` y escriba `current_value_cents` (las claves de la API vivirán en secretos de Supabase).

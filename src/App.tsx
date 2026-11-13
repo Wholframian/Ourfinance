@@ -14,6 +14,11 @@ import { MovementsPage } from './pages/Movements'
 import { AcceptInvitePage, OnboardingPage, readPendingInvite } from './pages/Onboarding'
 import { SettingsPage } from './pages/Settings'
 import { StatsPage } from './pages/Stats'
+import { BudgetsPage } from './pages/Budgets'
+import { FoodPage } from './pages/Food'
+import { GoalsPage } from './pages/Goals'
+import { HousePage } from './pages/House'
+import { TripDetailPage, TripsPage } from './pages/Trips'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -75,6 +80,12 @@ export default function App() {
                   <Route path="inversiones" element={<InvestmentsPage />} />
                   <Route path="estadisticas" element={<StatsPage />} />
                   <Route path="ajustes" element={<SettingsPage />} />
+                  <Route path="casa" element={<HousePage />} />
+                  <Route path="viajes" element={<TripsPage />} />
+                  <Route path="viajes/:id" element={<TripDetailPage />} />
+                  <Route path="comidas" element={<FoodPage />} />
+                  <Route path="presupuestos" element={<BudgetsPage />} />
+                  <Route path="objetivos" element={<GoalsPage />} />
                 </Route>
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>

@@ -15,7 +15,7 @@ Español, EUR, Europe/Madrid, fechas DD/MM/YYYY.
 | Fase | Contenido | Estado |
 |---|---|---|
 | 1 | Registro e inicio de sesión, espacio compartido e invitación, dashboard, movimientos (alta, edición, duplicado, borrado, justificantes), personales/compartidos, cuenta común y aportaciones, gráficas básicas | ✅ |
-| 2 | Casa, viajes, comidas, presupuestos, objetivos de ahorro | Tablas creadas, pantallas pendientes |
+| 2 | Casa (gastos recurrentes, coste mensual y anual, comparativa por años), viajes (presupuesto frente a gasto, por categoría y persona, comparativa), comidas y restaurantes, presupuestos, objetivos de ahorro | ✅ |
 | 3 | Inversiones, patrimonio neto, rentabilidad, analítica avanzada, exportación | Tablas creadas, pantallas pendientes |
 
 ## Puesta en marcha
@@ -24,7 +24,8 @@ Español, EUR, Europe/Madrid, fechas DD/MM/YYYY.
 
 1. Crea un proyecto en [supabase.com](https://supabase.com) (región UE).
 2. **SQL Editor → New query**: pega el contenido de `supabase/setup.sql` y pulsa **Run**.
-   En un proyecto que ya tenga el esquema, ejecuta solo las migraciones nuevas de `supabase/migrations/`, en orden.
+   En un proyecto que ya tenga el esquema, ejecuta solo las migraciones nuevas de `supabase/migrations/`, en orden
+   (todas se pueden ejecutar más de una vez salvo `0001`–`0004`, que crean el esquema inicial).
 3. **Authentication → Sign In / Providers → Email**: deja activado *Confirm email* en producción.
 4. **Authentication → URL Configuration**: pon como *Site URL* la URL donde publiques la app
    (y `http://localhost:5173` en *Redirect URLs* para desarrollo). Se usa en los emails de confirmación y de recuperar contraseña.
@@ -111,7 +112,8 @@ src/
   providers/   sesión, espacio compartido, periodo seleccionado
   hooks/       consultas y mutaciones (TanStack Query)
   components/  layout, UI, gráficas, formulario y lista de movimientos
-  pages/       Inicio, Movimientos, Cuenta común, Inversiones, Estadísticas, Ajustes, acceso
+  pages/       Inicio, Movimientos, Cuenta común, Inversiones, Estadísticas, Ajustes, acceso,
+               Casa, Viajes, Comidas, Presupuestos, Objetivos
 supabase/
   migrations/  esquema, seguridad (RLS), RPC, storage
   tests/       pruebas de RLS

@@ -240,3 +240,16 @@ export function ConfirmDialog({ open, title, message, confirmLabel = 'Eliminar',
     </Modal>
   )
 }
+
+// ---------------------------------------------------------------- Progreso
+/** Barra de progreso con estado (nunca solo color: siempre acompañada de texto). */
+export function ProgressBar({ value, max, tone }: { value: number; max: number; tone?: 'ok' | 'warn' | 'over' | 'brand' }) {
+  const pct = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0
+  const t = tone ?? (max > 0 && value > max ? 'over' : max > 0 && value / max >= 0.85 ? 'warn' : 'ok')
+  const colors = { ok: 'bg-emerald-600', warn: 'bg-amber-500', over: 'bg-red-600', brand: 'bg-brand-600' }
+  return (
+    <div className="h-2 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
+      <div className={clsx('h-full rounded-full transition-all', colors[t])} style={{ width: `${pct}%` }} />
+    </div>
+  )
+}

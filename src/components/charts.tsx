@@ -2,7 +2,7 @@ import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
 import { monthShort } from '../lib/dates'
-import { formatCents, formatCentsCompact, percent } from '../lib/money'
+import { formatCents, formatCentsCompact, formatPercent } from '../lib/money'
 import { EmptyState } from './ui'
 
 /**
@@ -70,7 +70,7 @@ export function Legend({ items }: { items: { label: string; color: string }[] })
 export interface BarSeries { key: string; label: string; color: string }
 
 /** Barras agrupadas por mes (p. ej. ingresos vs gastos). */
-export function MonthlyBars({ data, series, height = 240 }: { data: Record<string, number | string>[]; series: BarSeries[]; height?: number }) {
+export function MonthlyBars({ data, series, height = 240, xFormat = monthShort }: { data: Record<string, number | string>[]; series: BarSeries[]; height?: number; xFormat?: (v: string) => string }) {
   if (!data.length) return <EmptyState title="Sin datos en este periodo" />
   return (
     <div className="space-y-3">
@@ -78,9 +78,9 @@ export function MonthlyBars({ data, series, height = 240 }: { data: Record<strin
       <ResponsiveContainer width="100%" height={height}>
         <BarChart data={data} barGap={2} barCategoryGap="24%">
           <CartesianGrid vertical={false} stroke="#eef2f6" />
-          <XAxis dataKey="month" tickFormatter={monthShort} {...axis} />
+          <XAxis dataKey="month" tickFormatter={xFormat} {...axis} />
           <YAxis tickFormatter={(v) => formatCentsCompact(v)} width={56} {...axis} />
-          <Tooltip cursor={{ fill: '#f1f5f9' }} content={makeTooltip(monthShort)} />
+          <Tooltip cursor={{ fill: '#f1f5f9' }} content={makeTooltip(xFormat)} />
           {series.map((s) => (
             <Bar key={s.key} dataKey={s.key} name={s.label} fill={s.color} radius={[4, 4, 0, 0]} maxBarSize={28} />
           ))}
@@ -173,7 +173,7 @@ export function DonutWithTable({ slices, totalLabel = 'Total', onSelect }: { sli
             >
               <span className="size-2.5 shrink-0 rounded-sm" style={{ background: s.color }} />
               <span className="flex-1 truncate text-slate-700">{s.name}</span>
-              <span className="text-xs text-slate-500 tabular">{percent(s.value, total)} %</span>
+              <span className="text-xs text-slate-500 tabular">{formatPercent(s.value, total)} %</span>
               <span className="w-24 text-right font-medium tabular">{formatCents(s.value)}</span>
             </button>
           </li>
@@ -198,7 +198,7 @@ export function ShareBar({ parts }: { parts: { label: string; value: number; col
           <li key={p.label} className="flex items-center gap-2 text-sm">
             <span className="size-2.5 rounded-sm" style={{ background: p.color }} />
             <span className="flex-1 text-slate-700">{p.label}</span>
-            <span className="text-xs text-slate-500 tabular">{percent(p.value, total)} %</span>
+            <span className="text-xs text-slate-500 tabular">{formatPercent(p.value, total)} %</span>
             <span className="font-medium tabular">{formatCents(p.value)}</span>
           </li>
         ))}
