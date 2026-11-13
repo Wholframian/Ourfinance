@@ -309,5 +309,113 @@ do $$ begin
   raise notice 'OK 15 · Justificantes: B solo ve los de movimientos compartidos';
 end $$;
 
+
+-- ======================================================== FASE 2
+-- Recurrentes ---------------------------------------------------------------
+:as_a
+\o /dev/null
+with r as (insert into public.recurring_transactions (household_id, created_by, visibility, type, amount_cents, description, category_id, account_id, frequency, next_due_on)
+  values (t.get('hid'), t.get('hid'), 'shared', 'expense', 85000, 'Alquiler', (select id from public.categories where name = 'Vivienda'), t.get('common'), 'monthly', '2026-10-01') returning id)
+select t.put('rec', id) from r;
+\o
+do $$
+declare n int; nd date;
+begin
+  perform public.register_recurring(t.get('rec'));
+  perform public.register_recurring(t.get('rec'));
+  select next_due_on into nd from public.recurring_transactions where id = t.get('rec');
+  if nd <> '2026-12-01' then raise exception 'FALLO: próxima fecha %', nd; end if;
+  select count(*) into n from public.transactions where recurring_id = t.get('rec');
+  if n <> 2 then raise exception 'FALLO: recurrente generó % movimientos', n; end if;
+  begin
+    insert into public.transactions (household_id, type, visibility, amount_cents, occurred_on, description, account_id, recurring_id)
+    values (t.get('hid'), 'expense', 'shared', 85000, '2026-10-01', 'Alquiler', t.get('common'), t.get('rec'));
+    raise exception 'FALLO: cuota duplicada';
+  exception when unique_violation then null; end;
+  begin
+    insert into public.recurring_transactions (household_id, visibility, type, amount_cents, description, account_id, next_due_on)
+    values (t.get('hid'), 'personal', 'expense', 100, 'x', t.get('common'), '2026-11-01');
+    raise exception 'FALLO: recurrente personal en cuenta común';
+  exception when others then if sqlerrm like 'FALLO%' then raise; end if; end;
+  raise notice 'OK 16 · Recurrentes: generan la cuota una sola vez y avanzan la fecha';
+end $$;
+
+:as_b
+do $$ begin
+  -- B puede registrar la cuota de un recurrente compartido de A
+  perform public.register_recurring(t.get('rec'));
+  if (select count(*) from public.transactions where recurring_id = t.get('rec')) <> 3 then raise exception 'FALLO: B no ve las cuotas'; end if;
+  raise notice 'OK 17 · B gestiona los recurrentes compartidos';
+end $$;
+
+-- Viajes --------------------------------------------------------------------
+:as_a
+\o /dev/null
+with x as (insert into public.trips (household_id, created_by, visibility, name, destination, budget_cents, start_date, end_date)
+  values (t.get('hid'), t.get('hid'), 'shared', 'Roma', 'Italia', 150000, '2026-12-01', '2026-12-05') returning id)
+select t.put('trip', id) from x;
+with x as (insert into public.transactions (household_id, type, visibility, amount_cents, occurred_on, description, account_id)
+  values (t.get('hid'), 'expense', 'shared', 32000, '2026-11-10', 'Vuelos Roma', t.get('a1')) returning id)
+select t.put('tx_vuelo', id) from x;
+insert into public.trip_expenses (trip_id, transaction_id, created_by, trip_category) values (t.get('trip'), t.get('tx_vuelo'), t.get('hid'), 'flights');
+\o
+do $$ begin
+  if (select trip_id from public.transactions where id = t.get('tx_vuelo')) <> t.get('trip') then raise exception 'FALLO: trip_id no sincronizado'; end if;
+  begin
+    insert into public.trip_expenses (trip_id, transaction_id, created_by) values (t.get('trip'), t.get('tx_a_personal'), auth.uid());
+    raise exception 'FALLO: gasto personal en viaje compartido';
+  exception when others then if sqlerrm like 'FALLO%' then raise; end if; end;
+  begin
+    update public.transactions set visibility = 'personal' where id = t.get('tx_vuelo');
+    raise exception 'FALLO: gasto de viaje compartido pasado a personal';
+  exception when others then if sqlerrm like 'FALLO%' then raise; end if; end;
+  raise notice 'OK 18 · Viajes: enlace sincronizado y gastos siempre compartidos';
+end $$;
+:as_b
+do $$ begin
+  if (select spent_cents from public.trip_summaries(t.get('hid')) where trip_id = t.get('trip')) <> 32000 then raise exception 'FALLO: total viaje para B'; end if;
+  raise notice 'OK 19 · B ve el mismo total del viaje';
+end $$;
+:as_c
+do $$ begin
+  if (select count(*) from public.trips) + (select count(*) from public.trip_expenses) + (select count(*) from public.recurring_transactions) <> 0 then
+    raise exception 'FALLO: C ve viajes o recurrentes';
+  end if;
+  raise notice 'OK 20 · Un externo no ve viajes ni recurrentes';
+end $$;
+
+-- Presupuestos --------------------------------------------------------------
+:as_a
+\o /dev/null
+insert into public.budgets (household_id, owner_id, visibility, name, period, category_id, amount_cents, start_date)
+values (t.get('hid'), t.get('hid'), 'shared', 'Súper', 'monthly', t.get('cat_super'), 40000, '2026-01-01'),
+       (t.get('hid'), t.get('hid'), 'personal', 'Ropa', 'monthly', t.get('cat_ropa'), 10000, '2026-01-01'),
+       (t.get('hid'), t.get('hid'), 'shared', 'Roma', 'custom', null, 150000, '2026-01-01');
+update public.budgets set trip_id = t.get('trip') where name = 'Roma';
+\o
+do $$
+declare s1 bigint; s2 bigint; s3 bigint;
+begin
+  select spent_cents into s1 from public.budget_progress(t.get('hid'), '2026-11-15') bp join public.budgets b on b.id = bp.budget_id where b.name = 'Súper';
+  select spent_cents into s2 from public.budget_progress(t.get('hid'), '2026-11-15') bp join public.budgets b on b.id = bp.budget_id where b.name = 'Ropa';
+  select spent_cents into s3 from public.budget_progress(t.get('hid'), '2026-11-15') bp join public.budgets b on b.id = bp.budget_id where b.name = 'Roma';
+  if s1 <> 12034 or s2 <> 4599 or s3 <> 32000 then raise exception 'FALLO: presupuestos % % %', s1, s2, s3; end if;
+  raise notice 'OK 21 · Presupuestos: compartido, personal y de viaje calculados bien';
+end $$;
+:as_b
+do $$ begin
+  if exists (select 1 from public.budgets where name = 'Ropa') then raise exception 'FALLO: B ve presupuesto personal de A'; end if;
+  if (select count(*) from public.budget_progress(t.get('hid'), '2026-11-15')) <> 2 then raise exception 'FALLO: B ve progreso ajeno'; end if;
+  raise notice 'OK 22 · B no ve los presupuestos personales de A';
+end $$;
+
+-- Borrar un movimiento enlazado a un viaje no falla
+:as_a
+do $$ begin
+  delete from public.transactions where id = t.get('tx_vuelo');
+  if exists (select 1 from public.trip_expenses where transaction_id = t.get('tx_vuelo')) then raise exception 'FALLO: enlace huérfano'; end if;
+  raise notice 'OK 23 · Borrar un gasto de viaje elimina el enlace';
+end $$;
+
 reset role;
 \echo 'TODAS LAS PRUEBAS DE RLS SUPERADAS'
