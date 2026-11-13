@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react'
+import { CategoryOptions, parentCategoriesFor } from './CategoryOptions'
 import { useAccounts, useCategories } from '../hooks/data'
 import { useSaveRecurring } from '../hooks/phase2'
 import { isValidISODate, todayISO } from '../lib/dates'
@@ -54,13 +55,13 @@ export function RecurringForm({ editing, defaultCategoryId, defaultType = 'expen
   const touched = [accountId, twoAccounts ? toAccountId : ''].map((id) => usable.find((a) => a.id === id))
   const forcedShared = type === 'contribution' || touched.some((a) => a?.visibility === 'shared')
   const hasCategory = type === 'expense' || type === 'income'
-  const catKind = type === 'income' ? 'income' : 'expense'
-  const parents = (categories.data ?? []).filter((c) => !c.parent_id && c.kind === catKind)
+  const catGroups = parentCategoriesFor(type, categories.data ?? [], categoryId)
   const subs = (categories.data ?? []).filter((c) => c.parent_id === categoryId)
 
   const changeType = (t: TransactionType) => {
     setType(t)
-    if ((t === 'income') !== (type === 'income') || !(t === 'expense' || t === 'income')) { setCategoryId(''); setSubId('') }
+    const catIsIncome = (categories.data ?? []).find((c) => c.id === categoryId)?.kind === 'income'
+    if (!(t === 'expense' || t === 'income') || (t === 'expense' && catIsIncome)) { setCategoryId(''); setSubId('') }
     if (!TWO_ACCOUNTS.includes(t)) setToAccountId('')
     if (t === 'contribution') { setAccountId(''); setToAccountId(usable.find((a) => a.kind === 'common')?.id ?? '') }
   }
@@ -113,7 +114,7 @@ export function RecurringForm({ editing, defaultCategoryId, defaultType = 'expen
             <Field label="Categoría" htmlFor="rcat">
               <Select id="rcat" value={categoryId} onChange={(e) => { setCategoryId(e.target.value); setSubId('') }}>
                 <option value="">Sin categoría</option>
-                {parents.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                <CategoryOptions groups={catGroups} />
               </Select>
             </Field>
             <Field label="Subcategoría" htmlFor="rsub">

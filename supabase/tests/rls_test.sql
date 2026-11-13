@@ -197,8 +197,8 @@ begin
   exception when others then if sqlerrm like 'FALLO%' then raise; end if; end;
   begin
     insert into public.transactions (household_id, type, visibility, amount_cents, occurred_on, description, category_id, account_id)
-    values (t.get('hid'), 'income', 'personal', 100, '2026-11-06', 'Ingreso con categoría de gasto', t.get('cat_super'), t.get('b1'));
-    raise exception 'FALLO: categoría de gasto en un ingreso';
+    values (t.get('hid'), 'expense', 'personal', 100, '2026-11-06', 'Gasto con categoría de ingreso', (select id from public.categories where name = 'Ingresos' and parent_id is null), t.get('b1'));
+    raise exception 'FALLO: categoría de ingreso en un gasto';
   exception when others then if sqlerrm like 'FALLO%' then raise; end if; end;
   raise notice 'OK 9 · Integridad: cuentas ajenas, cuenta común, aportaciones, pagador, importes y categorías';
 end $$;
@@ -646,6 +646,24 @@ end $$;
 do $$ begin
   if public.register_due_recurring(t.get('hid')) <> 0 then raise exception 'FALLO: C registró cuotas ajenas'; end if;
   raise notice 'OK 36 · Un externo no puede apuntar periódicos ajenos';
+end $$;
+
+-- 37 · Ingresos con categorías de gasto y «Peajes»
+:as_b
+do $$
+declare before bigint; after bigint;
+begin
+  if not exists (select 1 from public.categories s join public.categories c on c.id = s.parent_id
+                 where c.name = 'Ingresos' and s.name = 'Peajes' and s.kind = 'income') then
+    raise exception 'FALLO: falta la subcategoría de ingresos Peajes';
+  end if;
+  select coalesce(sum(expense_cents), 0) into before from public.category_breakdown(t.get('hid'), '2026-01-01', '2026-12-31');
+  insert into public.transactions (household_id, type, visibility, amount_cents, occurred_on, description, category_id, subcategory_id, account_id)
+  values (t.get('hid'), 'income', 'personal', 4500, '2026-11-06', 'Reembolso peajes', t.get('cat_super'),
+          (select id from public.categories where parent_id = t.get('cat_super') order by sort_order limit 1), t.get('b1'));
+  select coalesce(sum(expense_cents), 0) into after from public.category_breakdown(t.get('hid'), '2026-01-01', '2026-12-31');
+  if before <> after then raise exception 'FALLO: un ingreso cuenta como gasto en las estadísticas'; end if;
+  raise notice 'OK 37 · Los ingresos usan categorías de gasto sin contar como gasto, y existe Peajes';
 end $$;
 
 reset role;
