@@ -1,4 +1,4 @@
-# OURFINANCE
+# Etxea
 
 Gestor financiero personal y compartido para una pareja. Cada uno tiene su cuenta y sus
 finanzas privadas, y juntos compartís un espacio con la cuenta común, los gastos de casa
