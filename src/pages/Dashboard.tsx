@@ -4,9 +4,9 @@ import { DonutWithTable, GROUP_COLOR, MonthlyBars, NEUTRAL, SERIES, ShareBar, Tr
 import { MODULES, PageHeader } from '../components/Layout'
 import { PeriodFilter } from '../components/PeriodFilter'
 import { TransactionList } from '../components/TransactionList'
-import { Card, ErrorBox, PageLoader, StatCard } from '../components/ui'
+import { Card, ErrorBox, Money, PageLoader, StatCard } from '../components/ui'
 import {
-  useAccounts, useCategoryBreakdown, useMonthlyFlows, useNetWorthSeries, usePeriodSummary, useTransactions,
+  useAccountFlows, useAccounts, useCategoryBreakdown, useMonthlyFlows, useNetWorthSeries, usePeriodSummary, useTransactions,
 } from '../hooks/data'
 import { useHouseholdNetWorth, usePositions } from '../hooks/phase3'
 import { addMonths, endOfMonth, periodLabel, startOfMonth } from '../lib/dates'
@@ -33,6 +33,7 @@ export function DashboardPage() {
   const flows = useMonthlyFlows(win.from, win.to)
   const netWorth = useNetWorthSeries(win.from, win.to)
   const cats = useCategoryBreakdown(period.from, period.to)
+  const accFlows = useAccountFlows(period.from, period.to)
   const latest = useTransactions({}, 0, 8)
   const positions = usePositions()
   const joint = useHouseholdNetWorth()
@@ -85,6 +86,15 @@ export function DashboardPage() {
         <StatCard label="Ahorro" cents={s?.savings_cents} tone={s && s.savings_cents >= 0 ? 'positive' : 'default'} loading={summary.isLoading} hint="Ingresos − gastos" />
       </div>
 
+      <AccountFlowsCard
+        loading={accFlows.isLoading || !accounts.data}
+        flows={accFlows.data ?? []}
+        groups={[
+          { label: 'Mis cuentas', accounts: list.filter((a) => a.visibility === 'personal' && a.owner_id === user?.id) },
+          { label: 'Compartidas', accounts: list.filter((a) => a.visibility === 'shared') },
+        ]}
+      />
+
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <Card title="Evolución del patrimonio">
           {netWorth.isLoading ? <PageLoader /> : <TrendArea data={netWorth.data ?? []} dataKey="net_worth_cents" label="Patrimonio" />}
@@ -119,5 +129,55 @@ export function DashboardPage() {
         {latest.isLoading ? <PageLoader /> : <TransactionList rows={latest.data?.rows ?? []} emptyText="Todavía no hay movimientos. Pulsa + para añadir el primero." />}
       </Card>
     </>
+  )
+}
+
+/** Ingresos y gastos del periodo, por cuenta, separando las personales de las compartidas */
+function AccountFlowsCard({ loading, flows, groups }: {
+  loading: boolean
+  flows: { account_id: string; income_cents: number; expense_cents: number }[]
+  groups: { label: string; accounts: { id: string; name: string; color?: string | null }[] }[]
+}) {
+  const byId = new Map(flows.map((f) => [f.account_id, f]))
+  const of = (id: string) => byId.get(id) ?? { income_cents: 0, expense_cents: 0 }
+  const shown = groups.filter((g) => g.accounts.length)
+  return (
+    <Card className="mt-6" title="Ingresos y gastos por cuenta">
+      {loading ? <PageLoader /> : !shown.length ? <p className="text-sm text-slate-500">Todavía no hay cuentas.</p> : (
+        <div className="grid gap-6 lg:grid-cols-2">
+          {shown.map((g) => {
+            const inc = g.accounts.reduce((s, a) => s + of(a.id).income_cents, 0)
+            const exp = g.accounts.reduce((s, a) => s + of(a.id).expense_cents, 0)
+            return (
+              <div key={g.label}>
+                <div className="grid grid-cols-[1fr_auto_auto] items-baseline gap-x-4 border-b border-slate-100 pb-2 text-xs font-medium text-slate-500">
+                  <span>{g.label}</span><span className="block w-24 text-right">Ingresos</span><span className="block w-24 text-right">Gastos</span>
+                </div>
+                <ul className="divide-y divide-slate-100">
+                  {g.accounts.map((a) => (
+                    <li key={a.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-x-4 py-2 text-sm">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="size-2.5 shrink-0 rounded-full" style={{ background: a.color ?? '#94a3b8' }} />
+                        <span className="truncate">{a.name}</span>
+                      </span>
+                      <Money cents={of(a.id).income_cents} signed={of(a.id).income_cents ? 1 : 0} className="block w-24 text-right" />
+                      <Money cents={of(a.id).expense_cents} signed={of(a.id).expense_cents > 0 ? -1 : 0} className="block w-24 text-right" />
+                    </li>
+                  ))}
+                </ul>
+                {g.accounts.length > 1 && (
+                  <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 border-t border-slate-200 pt-2 text-sm font-semibold">
+                    <span>Total</span>
+                    <Money cents={inc} signed={inc ? 1 : 0} className="block w-24 text-right" />
+                    <Money cents={exp} signed={exp > 0 ? -1 : 0} className="block w-24 text-right" />
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+      <p className="mt-4 text-xs text-slate-500">Las transferencias y aportaciones no cuentan: solo mueven dinero entre cuentas. Los gastos ya descuentan devoluciones.</p>
+    </Card>
   )
 }
