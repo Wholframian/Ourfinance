@@ -40,6 +40,9 @@ export function txAccountsLabel(tx: Transaction, accountName: (id: string | null
   }
   const from = name(tx.account_id)
   const to = name(tx.to_account_id)
+  // Operaciones de cartera: un solo lado (compra sale de la cuenta, venta entra)
+  if (tx.type === 'investment' && !from && to) return `Cartera → ${to}`
+  if (tx.type === 'investment' && from && !to) return `${from} → Cartera`
   if (to) return `${from ?? 'Fuera de la app'} → ${to}`
   return from ?? ''
 }

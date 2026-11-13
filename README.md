@@ -16,7 +16,7 @@ Español, EUR, Europe/Madrid, fechas DD/MM/YYYY.
 |---|---|---|
 | 1 | Registro e inicio de sesión, espacio compartido e invitación, dashboard, movimientos (alta, edición, duplicado, borrado, justificantes), personales/compartidos, cuenta común y aportaciones, gráficas básicas | ✅ |
 | 2 | Casa (gastos recurrentes, coste mensual y anual, comparativa por años), viajes (presupuesto frente a gasto, por categoría y persona, comparativa), comidas y restaurantes, presupuestos, objetivos de ahorro | ✅ |
-| 3 | Inversiones, patrimonio neto, rentabilidad, analítica avanzada, exportación | Tablas creadas, pantallas pendientes |
+| 3 | Inversiones, patrimonio neto, rentabilidad, patrimonio conjunto opcional, analítica avanzada, exportación Excel/CSV | ✅ |
 
 ## Puesta en marcha
 

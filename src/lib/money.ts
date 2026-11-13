@@ -95,3 +95,45 @@ const pctFmt = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 1 })
 export function formatPercent(part: number, total: number): string {
   return pctFmt.format(percent(part, total))
 }
+
+/**
+ * Número decimal escrito por el usuario (unidades, precios). Acepta coma o punto
+ * decimal y hasta `maxDecimals` decimales. Devuelve el número como texto
+ * normalizado ("12.345") para enviarlo a `numeric` sin pasar por float, o null.
+ */
+export function parseDecimal(input: string, maxDecimals = 8): string | null {
+  const s = input.replace(/[\s€ ]/g, '')
+  if (s === '') return null
+  // un único separador decimal; el punto con 3 cifras detrás y sin coma es ambiguo → decimal
+  const m = /^(\d+)(?:[.,](\d+))?$/.exec(s)
+  if (!m) {
+    // "1.234,5678" (miles con punto y decimales con coma)
+    const m2 = /^(\d{1,3}(?:\.\d{3})+),(\d+)$/.exec(s)
+    if (!m2) return null
+    return parseDecimal(`${m2[1].split('.').join('')},${m2[2]}`, maxDecimals)
+  }
+  const dec = m[2] ?? ''
+  if (dec.length > maxDecimals) return null
+  const int = m[1].replace(/^0+(?=\d)/, '')
+  const decTrim = dec.replace(/0+$/, '')
+  return decTrim ? `${int}.${decTrim}` : int
+}
+
+const qtyFmt = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 8, useGrouping: 'always' })
+/** Unidades: hasta 8 decimales, sin ceros sobrantes ("0,0125") */
+export function formatQuantity(v: number | string | null | undefined): string {
+  return qtyFmt.format(Number(v ?? 0))
+}
+
+const priceFmt = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 6 })
+/** Precio por unidad en euros (admite más de 2 decimales) */
+export function formatPrice(v: number | string | null | undefined): string {
+  return priceFmt.format(Number(v ?? 0))
+}
+
+/** Porcentaje con signo para rentabilidades: "+12,3 %" / "−4 %" */
+export function formatSignedPercent(part: number, total: number): string {
+  const p = percent(part, total)
+  const txt = pctFmt.format(Math.abs(p))
+  return `${p > 0 ? '+' : p < 0 ? '−' : ''}${txt} %`
+}

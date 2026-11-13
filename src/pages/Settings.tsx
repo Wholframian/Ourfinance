@@ -14,6 +14,11 @@ import { ACCOUNT_KIND_LABEL, type AccountKind, type Category, type Visibility } 
 import { useAuth } from '../providers/AuthProvider'
 import { useHousehold } from '../providers/HouseholdProvider'
 import { appUrl } from '../lib/url'
+import { useHouseholdNetWorth, useSetNetWorthSharing, useInvestments, usePositions, fetchAllOperations } from '../hooks/phase3'
+import { buildWorkbook, downloadBlob, fetchTransactionsForExport, toCsv, transactionColumns, type ExportData } from '../lib/export'
+import { formatCents } from '../lib/money'
+import { Download, Eye, EyeOff } from 'lucide-react'
+import { useHouseholdId } from '../providers/HouseholdProvider'
 
 export function SettingsPage() {
   return (
@@ -23,6 +28,8 @@ export function SettingsPage() {
         <ProfileCard />
         <HouseholdCard />
         <AccountsCard />
+        <NetWorthSharingCard />
+        <ExportCard />
         <CategoriesCard />
       </div>
       <div className="mt-8 flex justify-center">
@@ -363,6 +370,120 @@ function CategoriesCard() {
         <Button type="submit" variant="secondary" loading={save.isPending}><Plus className="size-4" />Añadir</Button>
       </form>
       <div className="mt-2"><ErrorBox error={save.error ?? categories.error} /></div>
+    </Card>
+  )
+}
+
+// ------------------------------------------------------------------ Patrimonio conjunto
+function NetWorthSharingCard() {
+  const { user } = useAuth()
+  const { members, profileById } = useHousehold()
+  const joint = useHouseholdNetWorth()
+  const setSharing = useSetNetWorthSharing()
+  const rows = joint.data ?? []
+  const mine = rows.find((r) => r.user_id === user?.id)
+  const sharing = !!mine?.is_sharing
+  const all = rows.length > 0 && rows.every((r) => r.is_sharing)
+  const total = rows.reduce((a, r) => a + (r.net_worth_cents ?? 0), 0)
+
+  return (
+    <Card title="Patrimonio conjunto">
+      <p className="text-sm text-slate-600">
+        Comparte con tu pareja solo el <strong>total</strong> de tu patrimonio personal (cuentas e inversiones personales).
+        No verá tus cuentas, inversiones ni movimientos. Puedes desactivarlo cuando quieras.
+      </p>
+      {joint.isLoading ? <PageLoader /> : (
+        <>
+          <ul className="mt-4 space-y-2">
+            {rows.filter((r) => r.user_id).map((r) => (
+              <li key={r.user_id} className="flex items-center gap-3 text-sm">
+                <Avatar name={profileById(r.user_id)?.full_name} color={profileById(r.user_id)?.color} />
+                <span className="flex-1">{r.user_id === user?.id ? 'Tú' : profileById(r.user_id)?.full_name ?? 'Miembro'}</span>
+                {r.is_sharing ? <Badge tone="brand"><Eye className="mr-1 size-3" />Lo comparte</Badge> : <Badge><EyeOff className="mr-1 size-3" />No lo comparte</Badge>}
+                <span className="w-28 text-right font-medium tabular">{r.net_worth_cents == null ? '—' : formatCents(r.net_worth_cents)}</span>
+              </li>
+            ))}
+            <li className="flex items-center gap-3 text-sm">
+              <span className="ml-9 flex-1">Compartido (cuenta común e inversiones compartidas)</span>
+              <span className="w-28 text-right font-medium tabular">{formatCents(rows.find((r) => !r.user_id)?.net_worth_cents ?? 0)}</span>
+            </li>
+          </ul>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2.5 text-sm">
+            <span>{all ? <>Patrimonio de la pareja: <strong className="tabular">{formatCents(total)}</strong></> : members.length < 2 ? 'Cuando tu pareja se una, podréis activarlo los dos.' : 'El total conjunto aparece cuando los dos lo activáis.'}</span>
+            <Button size="sm" variant={sharing ? 'secondary' : 'primary'} loading={setSharing.isPending} onClick={() => setSharing.mutate(!sharing)}>
+              {sharing ? 'Dejar de compartir' : 'Compartir mi total'}
+            </Button>
+          </div>
+        </>
+      )}
+      <div className="mt-3"><ErrorBox error={joint.error ?? setSharing.error} /></div>
+    </Card>
+  )
+}
+
+// ------------------------------------------------------------------ Exportar
+function ExportCard() {
+  const hid = useHouseholdId()
+  const { profileById } = useHousehold()
+  const accounts = useAccounts()
+  const categories = useCategories()
+  const investments = useInvestments()
+  const positions = usePositions()
+  const thisYear = todayISO().slice(0, 4)
+  const years = Array.from({ length: 6 }, (_, i) => String(Number(thisYear) - i))
+  const [range, setRange] = useState(thisYear)
+  const [busy, setBusy] = useState<'csv' | 'xlsx' | null>(null)
+  const [error, setError] = useState<unknown>(null)
+  const [done, setDone] = useState<string | null>(null)
+
+  async function run(kind: 'csv' | 'xlsx') {
+    setBusy(kind); setError(null); setDone(null)
+    try {
+      const from = range === 'all' ? null : `${range}-01-01`
+      const to = range === 'all' ? null : `${range}-12-31`
+      const transactions = await fetchTransactionsForExport(hid, from, to)
+      const data: ExportData = {
+        transactions,
+        accounts: accounts.data ?? [],
+        categories: categories.data ?? [],
+        investments: investments.data ?? [],
+        positions: positions.data ?? [],
+        operations: kind === 'xlsx' ? await fetchAllOperations(hid) : [],
+        memberName: (id) => (id ? profileById(id)?.full_name ?? '' : ''),
+      }
+      const name = `ourfinance-${range === 'all' ? 'todo' : range}`
+      if (kind === 'csv') {
+        downloadBlob(new Blob([toCsv(transactions, transactionColumns(data))], { type: 'text/csv;charset=utf-8' }), `${name}-movimientos.csv`)
+      } else {
+        downloadBlob(await buildWorkbook(data), `${name}.xlsx`)
+      }
+      setDone(`${transactions.length} ${transactions.length === 1 ? 'movimiento exportado' : 'movimientos exportados'}.`)
+    } catch (e) {
+      setError(e)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <Card title="Exportar datos">
+      <p className="text-sm text-slate-600">
+        Descarga lo que ves en la app: tus movimientos personales y los compartidos. Excel incluye además cuentas, inversiones y operaciones.
+      </p>
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+        <Field label="Periodo" htmlFor="exp-range">
+          <Select id="exp-range" value={range} onChange={(e) => setRange(e.target.value)}>
+            {years.map((y) => <option key={y} value={y}>Año {y}</option>)}
+            <option value="all">Todo el historial</option>
+          </Select>
+        </Field>
+        <div className="flex gap-2">
+          <Button onClick={() => run('xlsx')} loading={busy === 'xlsx'} disabled={!!busy}><Download className="size-4" />Excel</Button>
+          <Button variant="secondary" onClick={() => run('csv')} loading={busy === 'csv'} disabled={!!busy}><Download className="size-4" />CSV</Button>
+        </div>
+      </div>
+      {done && <p className="mt-3 text-sm text-emerald-700">{done}</p>}
+      <div className="mt-3"><ErrorBox error={error} /></div>
     </Card>
   )
 }

@@ -26,6 +26,7 @@ export interface HouseholdMember {
   user_id: string
   role: 'owner' | 'member'
   joined_at: string
+  share_net_worth?: boolean
 }
 
 export interface Invitation {
@@ -248,4 +249,66 @@ export const TRIP_CATEGORY_LABEL: Record<TripExpenseCategory, string> = {
 export const BUDGET_PERIOD_LABEL: Record<BudgetPeriod, string> = { monthly: 'Mensual', yearly: 'Anual', custom: 'Personalizado' }
 export const GOAL_TYPE_LABEL: Record<GoalType, string> = {
   emergency: 'Fondo de emergencia', travel: 'Viajes', housing: 'Vivienda', investment: 'Inversiones', other: 'Otro',
+}
+
+// ---------------------------------------------------------------- Fase 3
+export type AssetType = 'crypto' | 'stock' | 'etf' | 'fund' | 'deposit' | 'savings_account' | 'other'
+export type InvestmentTxType = 'buy' | 'sell' | 'dividend' | 'interest' | 'fee' | 'valuation'
+
+export interface Investment {
+  id: string
+  household_id: string
+  owner_id: string
+  visibility: Visibility
+  name: string
+  asset_type: AssetType
+  platform: string | null
+  account_id: string | null
+  quote_source: string | null
+  quote_symbol: string | null
+  acquired_on: string | null
+  notes: string | null
+  created_at: string
+}
+
+export interface InvestmentOperation {
+  id: string
+  investment_id: string
+  household_id: string
+  created_by: string
+  type: InvestmentTxType
+  occurred_on: string
+  units: string | null
+  unit_price: string | null
+  amount_cents: number
+  fee_cents: number
+  transaction_id: string | null
+  notes: string | null
+  created_at: string
+}
+
+export interface Position {
+  investment_id: string
+  units: number | null
+  last_price: number | null
+  cost_cents: number
+  contributed_cents: number
+  withdrawn_cents: number
+  realized_cents: number
+  income_cents: number
+  fees_cents: number
+  value_cents: number
+  total_return_cents: number
+  valued_on: string | null
+}
+
+/** Depósitos y cuentas remuneradas se siguen por importe, sin unidades */
+export const UNITLESS_ASSETS: AssetType[] = ['deposit', 'savings_account']
+
+export const ASSET_TYPE_LABEL: Record<AssetType, string> = {
+  crypto: 'Criptomoneda', stock: 'Acción', etf: 'ETF', fund: 'Fondo de inversión',
+  deposit: 'Depósito', savings_account: 'Cuenta remunerada', other: 'Otro',
+}
+export const INV_TX_LABEL: Record<InvestmentTxType, string> = {
+  buy: 'Compra', sell: 'Venta', dividend: 'Dividendo', interest: 'Intereses', fee: 'Comisión', valuation: 'Valoración',
 }

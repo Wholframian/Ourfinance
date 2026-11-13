@@ -4,7 +4,9 @@ import {
   ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, findPossibleDuplicate, openAttachment, useAccounts, useCategories,
   useDeleteAttachment, useSaveTransaction, type AccountWithBalance, type TxInput,
 } from '../hooks/data'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
 import { getTripLink, setTripLink, useTrips } from '../hooks/phase2'
 import { formatDate, isValidISODate, todayISO } from '../lib/dates'
 import { errorMessage } from '../lib/errors'
@@ -76,7 +78,36 @@ function initialState(src: Transaction | null | undefined, presetType: Transacti
 export function TransactionForm(props: TransactionFormProps) {
   // Se vuelve a montar cada vez que se abre: estado limpio y nueva clave de idempotencia
   if (!props.open) return null
-  return <TransactionFormInner key={(props.editing?.id ?? props.duplicateOf?.id ?? 'new') + (props.presetType ?? '') + (props.presetTripId ?? '')} {...props} />
+  if (props.editing) return <InvestmentLinkGuard {...props} editing={props.editing} />
+  return <TransactionFormInner key={(props.duplicateOf?.id ?? 'new') + (props.presetType ?? '') + (props.presetTripId ?? '')} {...props} />
+}
+
+/**
+ * Los movimientos de caja creados por una operación de inversión se gestionan
+ * desde Inversiones (la base de datos también impide cambiarlos aquí).
+ */
+function InvestmentLinkGuard(props: TransactionFormProps & { editing: Transaction }) {
+  const link = useQuery({
+    queryKey: ['inv', 'link', props.editing.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('investment_transactions').select('investment_id').eq('transaction_id', props.editing.id).maybeSingle()
+      if (error) throw error
+      return data as { investment_id: string } | null
+    },
+  })
+  if (link.isLoading) return null
+  if (!link.data) return <TransactionFormInner key={props.editing.id} {...props} />
+  return (
+    <Modal open onClose={props.onClose} title={props.editing.description}
+      footer={<><Button variant="secondary" onClick={props.onClose}>Cerrar</Button>
+        <Link to={`/inversiones/${link.data.investment_id}`} onClick={props.onClose}
+          className="inline-flex h-11 items-center rounded-xl bg-ink px-4 text-sm font-medium text-white">Ir a la inversión</Link></>}>
+      <p className="text-sm text-slate-600">
+        Este movimiento de {formatCents(props.editing.amount_cents)} del {formatDate(props.editing.occurred_on)} se creó desde una operación de inversión.
+        Para cambiarlo o borrarlo, hazlo desde la inversión: así la cartera y el saldo de la cuenta siguen cuadrando.
+      </p>
+    </Modal>
+  )
 }
 
 function TransactionFormInner({ open, onClose, editing, duplicateOf, presetType, presetTripId }: TransactionFormProps) {

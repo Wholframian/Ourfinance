@@ -102,6 +102,42 @@ ok((await B.c.storage.from('attachments').download(path)).error, 'B no puede des
 ok(!(await A.c.storage.from('attachments').download(path)).error, 'A sí puede descargar su justificante')
 ok((await B.c.storage.from('attachments').upload(`${hid}/${A.id}/falso.pdf`, pdf, { contentType: 'application/pdf' })).error, 'B no puede subir a la carpeta de A')
 
+// Fase 3: cartera, patrimonio y patrimonio conjunto
+const balBefore = must(await A.c.rpc('account_balances', { p_household: hid }), 'bal').find((b) => b.account_id === a1.id).balance_cents
+const [sumBefore] = must(await A.c.rpc('period_summary', { p_household: hid, p_from: '2026-10-01', p_to: '2026-10-31' }), 'sum')
+const etf = must(await A.c.from('investments').insert({ household_id: hid, owner_id: A.id, name: 'ETF prueba', asset_type: 'etf', visibility: 'personal', account_id: a1.id }).select().single(), 'etf')
+must(await A.c.rpc('record_investment_operation', { p_investment: etf.id, p_type: 'buy', p_on: '2026-10-01', p_amount_cents: null, p_units: '10', p_unit_price: '50', p_fee_cents: 2, p_cash_account: a1.id }), 'buy')
+must(await A.c.rpc('record_investment_operation', { p_investment: etf.id, p_type: 'dividend', p_on: '2026-10-10', p_amount_cents: 1500, p_cash_account: a1.id }), 'dividend')
+must(await A.c.rpc('record_investment_operation', { p_investment: etf.id, p_type: 'valuation', p_on: '2026-10-15', p_amount_cents: null, p_unit_price: '60' }), 'valuation')
+must(await A.c.rpc('record_investment_operation', { p_investment: etf.id, p_type: 'sell', p_on: '2026-10-20', p_amount_cents: null, p_units: '4', p_unit_price: '62', p_fee_cents: 1, p_cash_account: a1.id }), 'sell')
+const pos = must(await A.c.rpc('investment_positions', { p_household: hid }), 'positions').find((p) => p.investment_id === etf.id)
+ok(Number(pos.units) === 6 && pos.value_cents === 37200 && pos.total_return_cents === 13497 && pos.realized_cents === 4798, `Cartera: unidades, valor y rentabilidad (${pos.value_cents} / ${pos.total_return_cents})`)
+const balAfter = must(await A.c.rpc('account_balances', { p_household: hid }), 'bal').find((b) => b.account_id === a1.id).balance_cents
+ok(balAfter === balBefore - 50002 + 1500 + 24799, 'La cuenta refleja compra, dividendo y venta')
+const [sumAfter] = must(await A.c.rpc('period_summary', { p_household: hid, p_from: '2026-10-01', p_to: '2026-10-31' }), 'sum')
+ok(sumAfter.expense_cents === sumBefore.expense_cents && sumAfter.income_cents === sumBefore.income_cents + 1500, 'Comprar/vender no es gasto; el dividendo sí es ingreso')
+ok((await A.c.rpc('record_investment_operation', { p_investment: etf.id, p_type: 'sell', p_on: '2026-10-25', p_amount_cents: null, p_units: '7', p_unit_price: '60', p_cash_account: a1.id })).error, 'No se puede vender más de lo que se tiene')
+const cashTx = must(await A.c.from('investment_transactions').select('transaction_id').eq('investment_id', etf.id).eq('type', 'buy').single(), 'link').transaction_id
+ok((await A.c.from('transactions').update({ amount_cents: 1 }).eq('id', cashTx)).error, 'El movimiento de caja de una operación no se edita desde Movimientos')
+ok((await B.c.from('investments').select('id').eq('id', etf.id)).data.length === 0, 'B no ve la inversión personal de A')
+ok(must(await B.c.rpc('investment_positions', { p_household: hid }), 'posB').length === 0, 'B no ve posiciones ajenas')
+ok((await C.c.rpc('investment_positions', { p_household: hid })).data.length === 0, 'C no ve la cartera')
+const [nw] = must(await A.c.rpc('net_worth_series', { p_household: hid, p_from: '2026-10-01', p_to: '2026-10-31' }), 'nw')
+const accSum = must(await A.c.rpc('account_balances', { p_household: hid, p_at: '2026-10-31' }), 'b').reduce((s, b) => s + b.balance_cents, 0)
+ok(nw.net_worth_cents === accSum + 37200, 'El patrimonio suma cuentas y cartera')
+const jointB0 = must(await B.c.rpc('household_net_worth', { p_household: hid }), 'jointB')
+ok(jointB0.find((r) => r.user_id === A.id).net_worth_cents === null, 'Sin activarlo, B no ve el total de A')
+must(await A.c.rpc('set_net_worth_sharing', { p_household: hid, p_share: true }), 'share A')
+const jointB1 = must(await B.c.rpc('household_net_worth', { p_household: hid }), 'jointB')
+ok(jointB1.find((r) => r.user_id === A.id).net_worth_cents > 0, 'Con el permiso de A, B ve solo su total')
+ok(must(await B.c.rpc('household_net_worth_series', { p_household: hid, p_from: '2026-10-01', p_to: '2026-11-30' }), 's').length === 0, 'La serie conjunta espera a que los dos compartan')
+must(await B.c.rpc('set_net_worth_sharing', { p_household: hid, p_share: true }), 'share B')
+ok(must(await A.c.rpc('household_net_worth_series', { p_household: hid, p_from: '2026-10-01', p_to: '2026-11-30' }), 's').length === 6, 'Serie conjunta con los dos activados')
+ok((await C.c.rpc('household_net_worth', { p_household: hid })).error, 'C no puede consultar el patrimonio del espacio')
+await B.c.from('household_members').update({ share_net_worth: false }).eq('user_id', A.id)
+ok(must(await A.c.from('household_members').select('share_net_worth').eq('user_id', A.id).single(), 'm').share_net_worth === true, 'B no puede cambiar el permiso de A')
+ok(must(await A.c.rpc('top_subcategories', { p_household: hid, p_from: '2026-11-01', p_to: '2026-11-30' }), 'top').length > 0, 'Analítica: top de subcategorías')
+
 // Limpieza: borra el espacio de prueba (cascada). Los usuarios de prueba quedan en Auth.
 await A.c.storage.from('attachments').remove([path])
 const cleanup = await A.c.from('households').delete().eq('id', hid).select()
