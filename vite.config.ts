@@ -16,8 +16,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'OURFINANCE',
-        short_name: 'OURFINANCE',
+        name: 'Etxea',
+        short_name: 'Etxea',
         description: 'Finanzas personales y compartidas de la pareja',
         lang: 'es',
         start_url: base,

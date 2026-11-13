@@ -1,4 +1,4 @@
-# OURFINANCE · Arquitectura
+# Etxea · Arquitectura
 
 Gestor financiero personal y compartido para una pareja (preparado para más miembros).
 Idioma español, moneda EUR, zona horaria Europe/Madrid, fechas DD/MM/YYYY.

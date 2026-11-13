@@ -126,9 +126,9 @@ function HouseholdCard() {
 
   const share = async () => {
     if (!link) return
-    const text = `Únete a nuestro espacio en OURFINANCE: ${link}`
+    const text = `Únete a nuestro espacio en Etxea: ${link}`
     try {
-      if (navigator.share) await navigator.share({ title: 'OURFINANCE', text, url: link })
+      if (navigator.share) await navigator.share({ title: 'Etxea', text, url: link })
       else { await navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 2000) }
     } catch { /* cancelado */ }
   }
