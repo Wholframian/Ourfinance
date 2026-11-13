@@ -163,7 +163,7 @@ export function txSign(type: TransactionType): 1 | -1 | 0 {
 }
 
 // ---------------------------------------------------------------- Fase 2
-export type Frequency = 'monthly' | 'quarterly' | 'yearly'
+export type Frequency = 'weekly' | 'biweekly' | 'monthly' | 'bimonthly' | 'quarterly' | 'semiannual' | 'yearly'
 export type TripStatus = 'planned' | 'ongoing' | 'finished' | 'cancelled'
 export type TripExpenseCategory = 'flights' | 'hotels' | 'car_rental' | 'fuel' | 'restaurants' | 'activities' | 'transport' | 'shopping' | 'other'
 export type BudgetPeriod = 'monthly' | 'yearly' | 'custom'
@@ -186,6 +186,8 @@ export interface RecurringTransaction {
   end_on: string | null
   is_active: boolean
   notes: string | null
+  anchor_day?: number | null
+  auto_register: boolean
 }
 
 export interface Trip {
@@ -239,8 +241,14 @@ export interface SavingsGoal {
   is_achieved: boolean
 }
 
-export const FREQUENCY_LABEL: Record<Frequency, string> = { monthly: 'Mensual', quarterly: 'Trimestral', yearly: 'Anual' }
-export const FREQUENCY_MONTHS: Record<Frequency, number> = { monthly: 1, quarterly: 3, yearly: 12 }
+export const FREQUENCY_LABEL: Record<Frequency, string> = {
+  weekly: 'Semanal', biweekly: 'Cada 2 semanas', monthly: 'Mensual', bimonthly: 'Cada 2 meses',
+  quarterly: 'Trimestral', semiannual: 'Semestral', yearly: 'Anual',
+}
+/** Cuotas al mes de cada periodicidad (para el coste mensual equivalente) */
+export const FREQUENCY_PER_MONTH: Record<Frequency, number> = {
+  weekly: 52 / 12, biweekly: 26 / 12, monthly: 1, bimonthly: 1 / 2, quarterly: 1 / 3, semiannual: 1 / 6, yearly: 1 / 12,
+}
 export const TRIP_STATUS_LABEL: Record<TripStatus, string> = { planned: 'Planificado', ongoing: 'En curso', finished: 'Terminado', cancelled: 'Cancelado' }
 export const TRIP_CATEGORY_LABEL: Record<TripExpenseCategory, string> = {
   flights: 'Vuelos', hotels: 'Hoteles', car_rental: 'Alquiler de vehículo', fuel: 'Gasolina', restaurants: 'Restaurantes',

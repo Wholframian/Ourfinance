@@ -2,6 +2,8 @@ import { clsx } from 'clsx'
 import { ChevronLeft, ChevronRight, Lock, Paperclip, Search, SlidersHorizontal, Users } from 'lucide-react'
 import { useDeferredValue, useEffect, useState } from 'react'
 import { PageHeader } from '../components/Layout'
+import { RecurringCard } from '../components/RecurringCard'
+import { useRecurring } from '../hooks/phase2'
 import { PeriodFilter } from '../components/PeriodFilter'
 import { TransactionDetail, TransactionRow, txAccountsLabel, useTxLookups } from '../components/TransactionList'
 import { Avatar, Button, Card, ErrorBox, Input, Money, PageLoader, Segmented, Select } from '../components/ui'
@@ -16,6 +18,7 @@ export function MovementsPage() {
   const { members, profileById } = useHousehold()
   const accounts = useAccounts()
   const categories = useCategories()
+  const recurring = useRecurring()
   const lookups = useTxLookups()
 
   const [visibility, setVisibility] = useState<Visibility | 'all'>('all')
@@ -165,6 +168,8 @@ export function MovementsPage() {
           </div>
         </div>
       </Card>
+
+      <RecurringCard items={recurring.data ?? []} loading={recurring.isLoading} title="Movimientos periódicos" />
 
       <TransactionDetail tx={selected} onClose={() => setSelected(null)} />
     </>

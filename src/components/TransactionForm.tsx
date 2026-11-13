@@ -6,12 +6,14 @@ import {
 } from '../hooks/data'
 import { useQueryClient } from '@tanstack/react-query'
 import { useInvestmentLink } from '../hooks/phase3'
+import { supabase } from '../lib/supabase'
+import { FrequencySelect } from './RecurringForm'
 import { Link } from 'react-router-dom'
 import { getTripLink, setTripLink, useTrips } from '../hooks/phase2'
 import { formatDate, isValidISODate, todayISO } from '../lib/dates'
 import { errorMessage } from '../lib/errors'
 import { centsToInput, formatCents, parseAmountToCents } from '../lib/money'
-import { TRIP_CATEGORY_LABEL, TX_TYPE_LABEL, type Transaction, type TransactionType, type TripExpenseCategory, type Visibility } from '../lib/types'
+import { TRIP_CATEGORY_LABEL, TX_TYPE_LABEL, type Frequency, type Transaction, type TransactionType, type TripExpenseCategory, type Visibility } from '../lib/types'
 import { useAuth } from '../providers/AuthProvider'
 import { useHouseholdId } from '../providers/HouseholdProvider'
 import { Button, ErrorBox, Field, Input, Modal, Segmented, Select, Textarea } from './ui'
@@ -131,6 +133,10 @@ function TransactionFormInner({ open, onClose, editing, duplicateOf, presetType,
   const [file, setFile] = useState<File | null>(null)
   const [errors, setErrors] = useState<Partial<Record<keyof FormState | 'file', string>>>({})
   const [submitError, setSubmitError] = useState<unknown>(null)
+  const [repeat, setRepeat] = useState(false)
+  const [repeatFreq, setRepeatFreq] = useState<Frequency>('monthly')
+  const [repeatEnd, setRepeatEnd] = useState('')
+  const [repeatAuto, setRepeatAuto] = useState(true)
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null)
   const [checking, setChecking] = useState(false)
   const clientRequestId = useMemo(() => crypto.randomUUID(), [])
@@ -256,9 +262,20 @@ function TransactionFormInner({ open, onClose, editing, duplicateOf, presetType,
           return
         }
       }
+      if (canRepeat && repeat && repeatEnd && (!isValidISODate(repeatEnd) || repeatEnd <= input.occurred_on)) {
+        setSubmitError('La fecha de fin de la repetición debe ser posterior a la del movimiento.')
+        return
+      }
       const txId = await save.mutateAsync({ id: editing?.id, input, file })
       if (canHaveTrip && f.trip_id) await setTripLink(txId, { tripId: f.trip_id, category: f.trip_category })
       else if (editing) await setTripLink(txId, null)
+      if (canRepeat && repeat) {
+        const { error } = await supabase.rpc('make_recurring_from_transaction', {
+          p_transaction: txId, p_frequency: repeatFreq, p_end_on: repeatEnd || null, p_auto: repeatAuto,
+        })
+        if (error) throw error
+        qc.invalidateQueries({ queryKey: ['recurring'] })
+      }
       qc.invalidateQueries({ queryKey: ['tx'] })
       onClose()
     } catch (err) {
@@ -271,6 +288,7 @@ function TransactionFormInner({ open, onClose, editing, duplicateOf, presetType,
     }
   }
 
+  const canRepeat = !editing && f.type !== 'refund'
   const title = editing ? 'Editar movimiento' : duplicateOf ? 'Duplicar movimiento' : 'Nuevo movimiento'
   const noAccounts = accountsQ.isSuccess && usable.length === 0
 
@@ -397,6 +415,28 @@ function TransactionFormInner({ open, onClose, editing, duplicateOf, presetType,
         <Field label="Etiquetas" hint="Separadas por comas" error={errors.tags} htmlFor="tx-tags">
           <Input id="tx-tags" placeholder="vacaciones, regalo" value={f.tags} onChange={(e) => set('tags', e.target.value)} />
         </Field>
+
+        {canRepeat && (
+          <div className="rounded-xl bg-slate-50 p-3">
+            <label className="flex items-center gap-3 text-sm font-medium">
+              <input id="tx-repeat" type="checkbox" className="size-4 accent-slate-900" checked={repeat} onChange={(e) => setRepeat(e.target.checked)} />
+              Repetir periódicamente
+            </label>
+            {repeat && (
+              <div className="mt-3 space-y-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Cada" htmlFor="tx-freq"><FrequencySelect id="tx-freq" value={repeatFreq} onChange={setRepeatFreq} /></Field>
+                  <Field label="Hasta (opcional)" htmlFor="tx-repeat-end"><Input id="tx-repeat-end" type="date" value={repeatEnd} onChange={(e) => setRepeatEnd(e.target.value)} /></Field>
+                </div>
+                <label className="flex items-start gap-3 text-sm">
+                  <input type="checkbox" className="mt-0.5 size-4 accent-slate-900" checked={repeatAuto} onChange={(e) => setRepeatAuto(e.target.checked)} />
+                  <span>Apuntar automáticamente cada cuota cuando llegue su fecha</span>
+                </label>
+                <p className="text-xs text-slate-500">Este movimiento es la primera cuota. Las siguientes las puedes ver, pausar o editar en Movimientos → Movimientos periódicos.</p>
+              </div>
+            )}
+          </div>
+        )}
 
         <Field label="Notas" error={errors.notes} htmlFor="tx-notes">
           <Textarea id="tx-notes" maxLength={2000} value={f.notes} onChange={(e) => set('notes', e.target.value)} />
