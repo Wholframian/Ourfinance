@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import type {
   Budget, RecurringTransaction, SavingsGoal, Transaction, Trip, TripExpense, TripExpenseCategory,
@@ -237,4 +238,23 @@ export function useDeleteGoal() {
     mutationFn: async (id: string) => { await must(supabase.from('savings_goals').delete().eq('id', id)) },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['goals'] }),
   })
+}
+
+/**
+ * Apunta las cuotas vencidas de los periódicos automáticos una vez por sesión y
+ * espacio. La base de datos evita duplicados aunque los dos abráis la app a la vez.
+ */
+const autoRegistered = new Set<string>()
+export function useAutoRegisterRecurring() {
+  const hid = useHouseholdId()
+  const qc = useQueryClient()
+  const invalidate = useInvalidateFinance()
+  useEffect(() => {
+    if (!hid || autoRegistered.has(hid)) return
+    autoRegistered.add(hid)
+    supabase.rpc('register_due_recurring', { p_household: hid }).then(({ data, error }) => {
+      if (error) { console.warn('No se pudieron apuntar los periódicos', error.message); return }
+      if (Number(data) > 0) { qc.invalidateQueries({ queryKey: ['recurring'] }); invalidate() }
+    })
+  }, [hid, qc, invalidate])
 }

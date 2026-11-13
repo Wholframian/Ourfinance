@@ -585,5 +585,68 @@ begin
   raise notice 'OK 32 · Borrar una operación elimina su caja y recalcula la posición';
 end $$;
 
+-- =============================================================== Periódicos
+do $$ begin
+  if public.next_occurrence('2026-01-31', 'monthly', 31) <> '2026-02-28'
+     or public.next_occurrence('2026-02-28', 'monthly', 31) <> '2026-03-31'
+     or public.next_occurrence('2026-11-13', 'weekly') <> '2026-11-20'
+     or public.next_occurrence('2026-11-13', 'biweekly') <> '2026-11-27'
+     or public.next_occurrence('2026-08-31', 'semiannual', 31) <> '2027-02-28'
+     or public.next_occurrence('2026-11-30', 'bimonthly', 30) <> '2027-01-30' then
+    raise exception 'FALLO: cálculo de la próxima fecha';
+  end if;
+  if public.monthly_equivalent(1200, 'weekly') <> 5200 or public.monthly_equivalent(60000, 'semiannual') <> 10000 then
+    raise exception 'FALLO: equivalente mensual';
+  end if;
+  raise notice 'OK 33 · Periodicidades nuevas y el día 31 se conserva tras febrero';
+end $$;
+
+:as_a
+\o /dev/null
+with x as (insert into public.transactions (household_id, type, visibility, amount_cents, occurred_on, description, account_id, to_account_id)
+  values (t.get('hid'), 'contribution', 'shared', 50000, (now() at time zone 'Europe/Madrid')::date - 21, 'Aportación semanal', t.get('a1'), t.get('common')) returning id)
+select t.put('tx_rec', id) from x;
+select t.put('rec', public.make_recurring_from_transaction(t.get('tx_rec'), 'weekly'));
+\o
+do $$
+declare n int; m int;
+begin
+  if (select recurring_id from public.transactions where id = t.get('tx_rec')) <> t.get('rec') then raise exception 'FALLO: el movimiento no queda enlazado'; end if;
+  n := public.register_due_recurring(t.get('hid'));
+  if n <> 3 then raise exception 'FALLO: se apuntaron % cuotas (esperadas 3)', n; end if;
+  m := public.register_due_recurring(t.get('hid'));
+  if m <> 0 then raise exception 'FALLO: segunda pasada apuntó % cuotas', m; end if;
+  if (select count(*) from public.transactions where recurring_id = t.get('rec')) <> 4 then raise exception 'FALLO: número de aportaciones'; end if;
+  if (select next_due_on from public.recurring_transactions where id = t.get('rec')) <= (now() at time zone 'Europe/Madrid')::date then
+    raise exception 'FALLO: la próxima fecha no avanzó';
+  end if;
+  begin
+    perform public.make_recurring_from_transaction(t.get('tx_rec'), 'monthly');
+    raise exception 'FALLO: un movimiento convertido dos veces';
+  exception when others then if sqlerrm like 'FALLO%' then raise; end if; end;
+  begin
+    insert into public.recurring_transactions (household_id, created_by, visibility, type, amount_cents, description, account_id, to_account_id, frequency, next_due_on)
+    values (t.get('hid'), t.get('hid'), 'personal', 'contribution', 100, 'x', t.get('a1'), t.get('a1'), 'monthly', '2026-12-01');
+    raise exception 'FALLO: aportación periódica a una cuenta personal';
+  exception when others then if sqlerrm like 'FALLO%' then raise; end if; end;
+  begin
+    insert into public.recurring_transactions (household_id, created_by, visibility, type, amount_cents, description, account_id, frequency, next_due_on)
+    values (t.get('hid'), t.get('hid'), 'personal', 'transfer', 100, 'x', t.get('a1'), 'monthly', '2026-12-01');
+    raise exception 'FALLO: transferencia periódica sin destino';
+  exception when others then if sqlerrm like 'FALLO%' then raise; end if; end;
+  raise notice 'OK 34 · Un movimiento se hace periódico y las cuotas vencidas se apuntan una sola vez';
+end $$;
+:as_b
+do $$ begin
+  if public.register_due_recurring(t.get('hid')) <> 0 then raise exception 'FALLO: B duplicó cuotas'; end if;
+  if (select count(*) from public.transactions where recurring_id = t.get('rec')) <> 4 then raise exception 'FALLO: B no ve las aportaciones periódicas compartidas'; end if;
+  raise notice 'OK 35 · B ve las aportaciones periódicas y no se duplican al abrir la app';
+end $$;
+:as_c
+do $$ begin
+  if public.register_due_recurring(t.get('hid')) <> 0 then raise exception 'FALLO: C registró cuotas ajenas'; end if;
+  raise notice 'OK 36 · Un externo no puede apuntar periódicos ajenos';
+end $$;
+
 reset role;
 \echo 'TODAS LAS PRUEBAS DE RLS SUPERADAS'

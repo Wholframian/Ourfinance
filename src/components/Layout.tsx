@@ -1,4 +1,5 @@
 import { clsx } from 'clsx'
+import { useAutoRegisterRecurring } from '../hooks/phase2'
 import { BarChart3, Home, House, LineChart, ListOrdered, PiggyBank, Plane, Plus, Settings, Target, Users, UtensilsCrossed } from 'lucide-react'
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
@@ -55,6 +56,7 @@ export function Layout() {
   const { user } = useAuth()
   const me = profileById(user?.id)
   const [adding, setAdding] = useState(false)
+  useAutoRegisterRecurring()
 
   return (
     <div className="min-h-dvh lg:pl-64">
