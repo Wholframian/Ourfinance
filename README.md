@@ -62,7 +62,7 @@ El workflow `.github/workflows/deploy.yml` publica la app en `https://wholframia
 en cada push a `main` (pasa antes las pruebas unitarias). Necesita:
 
 - Settings → Pages → Source: **GitHub Actions**.
-- Settings → Secrets and variables → Actions → **Variables**: `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`.
+- La URL y la clave **publishable** están en `.env.production` (son públicas por diseño; la `service_role` nunca va ahí).
 - En Supabase → Authentication → URL Configuration: *Site URL* `https://wholframian.github.io/Ourfinance/`.
 
 ### Otros hostings
