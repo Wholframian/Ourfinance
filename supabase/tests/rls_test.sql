@@ -666,5 +666,23 @@ begin
   raise notice 'OK 37 · Los ingresos usan categorías de gasto sin contar como gasto, y existe Peajes';
 end $$;
 
+-- 38 · Ingresos y gastos por cuenta: B solo ve sus cuentas y las compartidas
+do $$ begin
+  if not exists (select 1 from public.account_flows(t.get('hid'), '2026-01-01', '2026-12-31') where account_id = t.get('b1') and income_cents >= 4500) then
+    raise exception 'FALLO: account_flows no suma los ingresos de la cuenta de B';
+  end if;
+  if exists (select 1 from public.account_flows(t.get('hid'), '2026-01-01', '2026-12-31') where account_id = t.get('a1')) then
+    raise exception 'FALLO: B ve los flujos de la cuenta personal de A';
+  end if;
+  if not exists (select 1 from public.account_flows(t.get('hid'), '2026-01-01', '2026-12-31') where account_id = t.get('common')) then
+    raise exception 'FALLO: B no ve los flujos de la cuenta común';
+  end if;
+  raise notice 'OK 38 · Ingresos y gastos por cuenta respetan la privacidad';
+end $$;
+:as_c
+do $$ begin
+  if exists (select 1 from public.account_flows(t.get('hid'), '2026-01-01', '2026-12-31')) then raise exception 'FALLO: C ve flujos ajenos'; end if;
+end $$;
+
 reset role;
 \echo 'TODAS LAS PRUEBAS DE RLS SUPERADAS'

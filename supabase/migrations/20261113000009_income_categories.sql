@@ -4,6 +4,7 @@
 --     conceptos: vivienda, transporte, alimentación...). Las estadísticas de
 --     gasto y los presupuestos siguen contando solo gastos y devoluciones.
 --   * Nueva subcategoría de ingresos «Peajes».
+--   * account_flows: ingresos y gastos del periodo en cada cuenta.
 -- Se puede ejecutar más de una vez.
 -- =============================================================================
 
@@ -126,3 +127,24 @@ where c.parent_id is null and c.kind = 'income' and c.group_key = 'income' and c
   and not exists (select 1 from public.categories s where s.parent_id = c.id and lower(s.name) = 'peajes');
 
 revoke all on function private.seed_default_categories(uuid) from public, anon, authenticated;
+
+-- Ingresos y gastos (netos de devoluciones) de cada cuenta en un periodo.
+-- SECURITY INVOKER: cada uno solo ve sus cuentas personales y las compartidas.
+create or replace function public.account_flows(p_household uuid, p_from date, p_to date)
+returns table (account_id uuid, income_cents bigint, expense_cents bigint)
+language sql stable
+set search_path = ''
+as $$
+  select a.id,
+         coalesce(sum(t.amount_cents) filter (where t.type = 'income'), 0)::bigint,
+         (coalesce(sum(t.amount_cents) filter (where t.type = 'expense'), 0)
+          - coalesce(sum(t.amount_cents) filter (where t.type = 'refund'), 0))::bigint
+  from public.accounts a
+  left join public.transactions t
+    on t.account_id = a.id and t.type in ('income', 'expense', 'refund')
+   and t.occurred_on between p_from and p_to
+  where a.household_id = p_household
+  group by a.id;
+$$;
+revoke all on function public.account_flows(uuid, date, date) from public, anon;
+grant execute on function public.account_flows(uuid, date, date) to authenticated;

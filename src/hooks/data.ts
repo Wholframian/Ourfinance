@@ -323,6 +323,18 @@ export function usePeriodSummary(from: string, to: string) {
   })
 }
 
+/** Ingresos y gastos del periodo en cada cuenta visible */
+export function useAccountFlows(from: string, to: string) {
+  const hid = useHouseholdId()
+  return useQuery({
+    queryKey: ['stats', 'account-flows', hid, from, to],
+    queryFn: async () =>
+      (await rpc<{ account_id: string; income_cents: number; expense_cents: number }[]>('account_flows', {
+        p_household: hid, p_from: from, p_to: to,
+      })).map(normalize),
+  })
+}
+
 export function useMonthlyFlows(from: string, to: string, categoryId?: string | null, visibility?: Visibility | null) {
   const hid = useHouseholdId()
   return useQuery({
