@@ -92,7 +92,7 @@ export function Field({ label, error, children, hint, htmlFor }: { label: string
   )
 }
 
-const inputCls = 'block w-full rounded-xl border-0 bg-white px-3.5 py-2.5 text-sm text-slate-900 ring-1 ring-slate-200 placeholder:text-slate-400 focus:ring-2 focus:ring-brand-600 focus:outline-none disabled:bg-slate-50 disabled:text-slate-500'
+const inputCls = 'block w-full rounded-xl border-0 bg-white px-3.5 py-2.5 text-base text-slate-900 ring-1 sm:text-sm ring-slate-200 placeholder:text-slate-400 focus:ring-2 focus:ring-brand-600 focus:outline-none disabled:bg-slate-50 disabled:text-slate-500'
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & { invalid?: boolean }>(
   function Input({ className, invalid, ...rest }, ref) {
