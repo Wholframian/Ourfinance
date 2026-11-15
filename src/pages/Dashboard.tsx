@@ -89,7 +89,7 @@ export function DashboardPage() {
       <div className="mt-3 grid gap-3 lg:grid-cols-2">
         <SidePanel title="Lo mío" icon={<User className="size-4" />}>
           <StatCard label="Mis cuentas" icon={<Wallet className="size-3.5" />} cents={accounts.data ? sum(mineCash) : undefined}
-            hint={`${mineCash.length} ${mineCash.length === 1 ? 'cuenta personal' : 'cuentas personales'}`} />
+            hint={<Link to="/cuentas" className="underline">Ver cuentas ({mineCash.length})</Link>} />
           <StatCard label="Mis inversiones" icon={<TrendingUp className="size-3.5" />} cents={ready ? sum(mineInv) + portfolioOf('personal') : undefined}
             hint={<Link to="/inversiones" className="underline">Ver cartera</Link>} />
           <StatCard label="Mis ingresos" cents={flowsReady ? flowSum(mineCash, 'income_cents') : undefined} tone="positive" hint="En mis cuentas personales" />
