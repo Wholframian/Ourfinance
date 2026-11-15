@@ -14,12 +14,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ session: null, user: null, loading: true })
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setState({ session: data.session, user: data.session?.user ?? null, loading: false })
-    })
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    let settled = false
+    const done = (session: Session | null) => {
+      settled = true
       setState({ session, user: session?.user ?? null, loading: false })
-    })
+    }
+    supabase.auth.getSession()
+      .then(({ data }) => done(data.session))
+      // Si no se puede leer la sesión, se muestra el acceso en vez de cargar para siempre
+      .catch(() => { if (!settled) done(null) })
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => done(session))
     return () => sub.subscription.unsubscribe()
   }, [])
 

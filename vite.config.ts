@@ -23,7 +23,8 @@ export default defineConfig({
         start_url: base,
         scope: base,
         display: 'standalone',
-        orientation: 'portrait',
+        // Se puede usar en vertical y en horizontal (móvil girado, tablet, ordenador)
+        orientation: 'any',
         background_color: '#f8fafc',
         theme_color: '#0f172a',
         icons: [

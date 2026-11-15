@@ -7,19 +7,28 @@ import { AuthProvider, useAuth } from './providers/AuthProvider'
 import { HouseholdProvider, useHousehold } from './providers/HouseholdProvider'
 import { PeriodProvider } from './providers/PeriodProvider'
 import { ForgotPasswordPage, LoginPage, NewPasswordPage, RegisterPage } from './pages/AuthPages'
-import { AccountDetailPage, AccountsPage } from './pages/Accounts'
-import { CommonAccountPage } from './pages/CommonAccount'
-import { DashboardPage } from './pages/Dashboard'
-import { InvestmentDetailPage, InvestmentsPage } from './pages/Investments'
-import { MovementsPage } from './pages/Movements'
 import { AcceptInvitePage, OnboardingPage, readPendingInvite } from './pages/Onboarding'
-import { SettingsPage } from './pages/Settings'
-import { StatsPage } from './pages/Stats'
-import { BudgetsPage } from './pages/Budgets'
-import { FoodPage } from './pages/Food'
-import { GoalsPage } from './pages/Goals'
-import { HousePage } from './pages/House'
-import { TripDetailPage, TripsPage } from './pages/Trips'
+import { ErrorBoundary } from './components/ErrorBoundary'
+import { lazy } from 'react'
+
+// Cada pantalla se descarga cuando se abre: la app arranca mucho más rápido en el móvil
+const named = <K extends string>(load: () => Promise<Record<K, React.ComponentType>>, name: K) =>
+  lazy(() => load().then((m) => ({ default: m[name] })))
+const DashboardPage = named(() => import('./pages/Dashboard'), 'DashboardPage')
+const MovementsPage = named(() => import('./pages/Movements'), 'MovementsPage')
+const AccountsPage = named(() => import('./pages/Accounts'), 'AccountsPage')
+const AccountDetailPage = named(() => import('./pages/Accounts'), 'AccountDetailPage')
+const CommonAccountPage = named(() => import('./pages/CommonAccount'), 'CommonAccountPage')
+const InvestmentsPage = named(() => import('./pages/Investments'), 'InvestmentsPage')
+const InvestmentDetailPage = named(() => import('./pages/Investments'), 'InvestmentDetailPage')
+const StatsPage = named(() => import('./pages/Stats'), 'StatsPage')
+const SettingsPage = named(() => import('./pages/Settings'), 'SettingsPage')
+const HousePage = named(() => import('./pages/House'), 'HousePage')
+const TripsPage = named(() => import('./pages/Trips'), 'TripsPage')
+const TripDetailPage = named(() => import('./pages/Trips'), 'TripDetailPage')
+const FoodPage = named(() => import('./pages/Food'), 'FoodPage')
+const BudgetsPage = named(() => import('./pages/Budgets'), 'BudgetsPage')
+const GoalsPage = named(() => import('./pages/Goals'), 'GoalsPage')
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -63,6 +72,7 @@ function ConfigMissing() {
 export default function App() {
   if (!isSupabaseConfigured) return <ConfigMissing />
   return (
+    <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <HouseholdProvider>
@@ -98,5 +108,6 @@ export default function App() {
         </HouseholdProvider>
       </AuthProvider>
     </QueryClientProvider>
+    </ErrorBoundary>
   )
 }

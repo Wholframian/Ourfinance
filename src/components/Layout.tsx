@@ -1,12 +1,13 @@
 import { clsx } from 'clsx'
 import { useAutoRegisterRecurring } from '../hooks/phase2'
 import { BarChart3, Home, House, LineChart, ListOrdered, PiggyBank, Plane, Plus, Settings, Target, Users, UtensilsCrossed } from 'lucide-react'
-import { useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { Suspense, useState, useSyncExternalStore } from 'react'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { ErrorBoundary } from './ErrorBoundary'
 import { useHousehold } from '../providers/HouseholdProvider'
 import { useAuth } from '../providers/AuthProvider'
 import { TransactionForm } from './TransactionForm'
-import { Avatar } from './ui'
+import { Avatar, PageLoader } from './ui'
 
 export const NAV = [
   { to: '/', label: 'Inicio', icon: Home, end: true },
@@ -51,15 +52,36 @@ function SideLink({ to, label, icon: Icon, end }: { to: string; label: string; i
   )
 }
 
+function subscribeOnline(cb: () => void) {
+  window.addEventListener('online', cb)
+  window.addEventListener('offline', cb)
+  return () => {
+    window.removeEventListener('online', cb)
+    window.removeEventListener('offline', cb)
+  }
+}
+
+/** Aviso cuando el móvil se queda sin conexión (para que no parezca que la app se ha colgado). */
+function OfflineBanner() {
+  const online = useSyncExternalStore(subscribeOnline, () => navigator.onLine, () => true)
+  if (online) return null
+  return (
+    <div role="status" className="mb-4 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800 ring-1 ring-amber-200">
+      Sin conexión a internet. Los datos se actualizarán al recuperarla.
+    </div>
+  )
+}
+
 export function Layout() {
   const { household, profileById } = useHousehold()
   const { user } = useAuth()
   const me = profileById(user?.id)
   const [adding, setAdding] = useState(false)
+  const { pathname } = useLocation()
   useAutoRegisterRecurring()
 
   return (
-    <div className="min-h-dvh lg:pl-64">
+    <div className="min-h-dvh overflow-x-clip lg:pl-64">
       {/* Menú lateral (escritorio) */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-slate-200/70 bg-white px-4 py-6 lg:flex">
         <Logo className="px-2" />
@@ -87,38 +109,43 @@ export function Layout() {
       </aside>
 
       {/* Cabecera móvil */}
-      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200/60 bg-slate-50/85 px-4 py-3 backdrop-blur lg:hidden">
+      <header className="safe-x sticky top-0 z-20 flex items-center justify-between border-b border-slate-200/60 bg-slate-50/85 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 backdrop-blur lg:hidden">
         <Logo />
         <Avatar name={me?.full_name} color={me?.color} size="md" />
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 pt-5 pb-28 sm:px-6 lg:px-8 lg:pt-8 lg:pb-12">
-        <Outlet />
+      <main className="safe-x mx-auto w-full max-w-6xl pt-5 pb-[calc(7rem+env(safe-area-inset-bottom))] sm:px-6 lg:px-8 lg:pt-8 lg:pb-12">
+        <OfflineBanner />
+        <ErrorBoundary resetKey={pathname}>
+          <Suspense fallback={<PageLoader />}>
+            <Outlet />
+          </Suspense>
+        </ErrorBoundary>
       </main>
 
       {/* Botón flotante (móvil) */}
       <button
         onClick={() => setAdding(true)}
         aria-label="Nuevo movimiento"
-        className="fixed right-4 bottom-[calc(76px+env(safe-area-inset-bottom))] z-30 flex size-14 items-center justify-center rounded-full bg-ink text-white shadow-lg shadow-slate-900/20 lg:hidden"
+        className="fixed right-[max(1rem,env(safe-area-inset-right))] bottom-[calc(76px+env(safe-area-inset-bottom))] z-30 flex size-14 items-center justify-center rounded-full bg-ink text-white shadow-lg shadow-slate-900/20 lg:hidden"
       >
         <Plus className="size-6" />
       </button>
 
       {/* Navegación inferior (móvil) */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-slate-200/70 bg-white/95 backdrop-blur safe-bottom lg:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-slate-200/70 bg-white/95 px-[env(safe-area-inset-left)] backdrop-blur safe-bottom lg:hidden">
         {NAV.map(({ to, label, shortLabel, icon: Icon, end }) => (
           <NavLink
             key={to}
             to={to}
             end={end}
             className={({ isActive }) => clsx(
-              'flex flex-col items-center gap-1 py-2.5 text-[10px] font-medium',
+              'flex min-w-0 flex-col items-center gap-1 px-0.5 py-2.5 text-[10px] font-medium',
               isActive ? 'text-slate-900' : 'text-slate-400',
             )}
           >
-            <Icon className="size-5" strokeWidth={1.8} />
-            {shortLabel ?? label}
+            <Icon className="size-5 shrink-0" strokeWidth={1.8} />
+            <span className="max-w-full truncate">{shortLabel ?? label}</span>
           </NavLink>
         ))}
       </nav>
@@ -131,7 +158,7 @@ export function Layout() {
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: React.ReactNode }) {
   return (
     <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-      <div>
+      <div className="min-w-0">
         <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
       </div>
