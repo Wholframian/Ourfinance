@@ -50,9 +50,10 @@ export function StatsPage() {
   // Composición del patrimonio al final del periodo
   const comp: Record<string, { name: string; value: number; color: string }> = {}
   for (const r of breakdown.data ?? []) {
-    const key = r.source === 'investment' ? `i_${r.kind}` : r.visibility === 'shared' ? 'a_shared' : 'a_personal'
-    const name = r.source === 'investment' ? ASSET_TYPE_LABEL[r.kind as AssetType] : r.visibility === 'shared' ? 'Cuentas compartidas' : 'Mis cuentas'
-    const color = r.source === 'investment' ? ASSET_COLOR[r.kind as AssetType] : r.visibility === 'shared' ? SERIES[0] : SERIES[2]
+    const invAcc = r.source === 'account' && r.kind === 'investment'
+    const key = r.source === 'investment' ? `i_${r.kind}` : invAcc ? 'a_investment' : r.visibility === 'shared' ? 'a_shared' : 'a_personal'
+    const name = r.source === 'investment' ? ASSET_TYPE_LABEL[r.kind as AssetType] : invAcc ? 'Cuentas de inversión' : r.visibility === 'shared' ? 'Cuentas compartidas' : 'Mis cuentas'
+    const color = r.source === 'investment' ? ASSET_COLOR[r.kind as AssetType] : invAcc ? SERIES[3] : r.visibility === 'shared' ? SERIES[0] : SERIES[2]
     comp[key] ??= { name, value: 0, color }
     comp[key].value += r.value_cents
   }
@@ -100,11 +101,11 @@ export function StatsPage() {
       <ErrorBox error={flows.error ?? cats.error ?? contrib.error} />
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card title={categoryId ? `Gasto mensual · ${parentById.get(categoryId)?.name}` : 'Ingresos y gastos'}>
+        <Card title={categoryId ? `Gasto mensual · ${parentById.get(categoryId)?.name}` : 'Ingresos, gastos e inversión'}>
           {flows.isLoading ? <PageLoader /> : (
             <MonthlyBars data={(flows.data ?? []) as never} series={categoryId
               ? [{ key: 'expense_cents', label: 'Gasto', color: SERIES[1] }]
-              : [{ key: 'income_cents', label: 'Ingresos', color: SERIES[0] }, { key: 'expense_cents', label: 'Gastos', color: SERIES[1] }]} />
+              : [{ key: 'income_cents', label: 'Ingresos', color: SERIES[0] }, { key: 'expense_cents', label: 'Gastos', color: SERIES[1] }, { key: 'invested_cents', label: 'Invertido', color: SERIES[3] }]} />
           )}
         </Card>
 

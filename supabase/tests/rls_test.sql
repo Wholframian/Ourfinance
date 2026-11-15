@@ -684,5 +684,58 @@ do $$ begin
   if exists (select 1 from public.account_flows(t.get('hid'), '2026-01-01', '2026-12-31')) then raise exception 'FALLO: C ve flujos ajenos'; end if;
 end $$;
 
+-- 39 · Cuenta de inversión con valor: aportado, valor, patrimonio e invertido
+:as_a
+do $$
+declare
+  broker uuid; val record; inv0 bigint; inv1 bigint; nw0 bigint; nw1 bigint; exp0 bigint; exp1 bigint;
+begin
+  insert into public.accounts (household_id, owner_id, visibility, kind, name, opening_balance_cents)
+  values (t.get('hid'), 'aaaaaaaa-0000-0000-0000-000000000001', 'personal', 'investment', 'Indexa', 0)
+  returning id into broker;
+  perform t.put('broker', broker);
+  select invested_cents, expense_cents into inv0, exp0 from public.period_summary(t.get('hid'), '2026-10-01', '2026-10-31');
+  select net_worth_cents into nw0 from public.household_net_worth(t.get('hid')) where user_id = 'aaaaaaaa-0000-0000-0000-000000000001';
+  insert into public.transactions (household_id, type, visibility, amount_cents, occurred_on, description, account_id, to_account_id)
+  values (t.get('hid'), 'investment', 'personal', 60000, '2026-10-05', 'Aportación Indexa', t.get('a1'), broker);
+  select invested_cents, expense_cents into inv1, exp1 from public.period_summary(t.get('hid'), '2026-10-01', '2026-10-31');
+  if inv1 - inv0 <> 60000 then raise exception 'FALLO: la aportación no cuenta como invertido (%)', inv1 - inv0; end if;
+  if exp1 <> exp0 then raise exception 'FALLO: la aportación cuenta como gasto'; end if;
+  if (select invested_cents from public.monthly_flows(t.get('hid'), '2026-10-01', '2026-10-31')) < 60000 then
+    raise exception 'FALLO: monthly_flows no devuelve lo invertido';
+  end if;
+  -- sin valoración: valor = aportado
+  select * into val from public.account_values(t.get('hid')) where account_id = broker;
+  if val.balance_cents <> 60000 or val.value_cents <> 60000 then raise exception 'FALLO: valor sin valoración'; end if;
+  -- valoración de 620 € y otra aportación posterior de 600 €
+  perform public.set_account_valuation(broker, '2026-10-31', 62000);
+  perform public.set_account_valuation(broker, '2026-10-31', 62500); -- sustituye la del mismo día
+  insert into public.transactions (household_id, type, visibility, amount_cents, occurred_on, description, account_id, to_account_id)
+  values (t.get('hid'), 'investment', 'personal', 60000, '2026-11-05', 'Aportación Indexa', t.get('a1'), broker);
+  select * into val from public.account_values(t.get('hid')) where account_id = broker;
+  if val.balance_cents <> 120000 or val.value_cents <> 122500 then
+    raise exception 'FALLO: valor tras valoración (aportado %, valor %)', val.balance_cents, val.value_cents;
+  end if;
+  if (select count(*) from public.account_valuations where account_id = broker) <> 1 then raise exception 'FALLO: valoración duplicada'; end if;
+  select net_worth_cents into nw1 from public.household_net_worth(t.get('hid')) where user_id = 'aaaaaaaa-0000-0000-0000-000000000001';
+  if nw1 - nw0 <> 2500 then raise exception 'FALLO: el patrimonio no usa el valor de la cuenta de inversión (%)', nw1 - nw0; end if;
+  begin
+    perform public.set_account_valuation(t.get('a1'), '2026-10-31', 1);
+    raise exception 'FALLO: se valoró una cuenta que no es de inversión';
+  exception when others then if sqlerrm like 'FALLO%' then raise; end if;
+  end;
+  raise notice 'OK 39 · Cuenta de inversión: aportado, valor, patrimonio e invertido (no gasto)';
+end $$;
+:as_b
+do $$ begin
+  if exists (select 1 from public.account_valuations) then raise exception 'FALLO: B ve valoraciones de una cuenta personal de A'; end if;
+  begin
+    perform public.set_account_valuation(t.get('broker'), '2026-11-10', 1);
+    raise exception 'FALLO: B valoró la cuenta personal de A';
+  exception when others then if sqlerrm like 'FALLO%' then raise; end if;
+  end;
+  raise notice 'OK 40 · Las valoraciones de una cuenta personal son privadas';
+end $$;
+
 reset role;
 \echo 'TODAS LAS PRUEBAS DE RLS SUPERADAS'

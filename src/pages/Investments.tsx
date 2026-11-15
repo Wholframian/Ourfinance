@@ -8,14 +8,14 @@ import {
 } from '../components/ui'
 import { useAccounts, type AccountWithBalance } from '../hooks/data'
 import {
-  useDeleteInvestment, useDeleteOperation, useInvestmentOperations, useInvestments, usePositions, useRecordOperation, useSaveInvestment,
+  useAccountValues, useDeleteInvestment, useDeleteOperation, useInvestmentOperations, useInvestments, usePositions, useRecordOperation, useSaveInvestment,
 } from '../hooks/phase3'
 import { formatDate, isValidISODate, todayISO } from '../lib/dates'
 import {
   formatCents, formatPrice, formatQuantity, formatSignedPercent, parseAmountToCents, parseDecimal,
 } from '../lib/money'
 import {
-  ACCOUNT_KIND_LABEL, ASSET_TYPE_LABEL, INV_TX_LABEL, UNITLESS_ASSETS,
+  ASSET_TYPE_LABEL, INV_TX_LABEL, UNITLESS_ASSETS,
   type AssetType, type Investment, type InvestmentOperation, type InvestmentTxType, type Position, type Visibility,
 } from '../lib/types'
 import { useAuth } from '../providers/AuthProvider'
@@ -66,10 +66,15 @@ export function InvestmentsPage() {
   const investments = useInvestments()
   const positions = usePositions()
   const accounts = useAccounts()
+  const values = useAccountValues()
   const [creating, setCreating] = useState(false)
 
   const posById = useMemo(() => new Map((positions.data ?? []).map((p) => [p.investment_id, p])), [positions.data])
   const list = investments.data ?? []
+  const brokers = (accounts.data ?? []).filter((a) => a.kind === 'investment' && (!a.is_archived || a.balance_cents !== 0))
+  const valueOf = (a: AccountWithBalance) => values.data?.get(a.id)?.value_cents ?? a.balance_cents
+  // Las cuentas de inversión cuentan como una inversión más: aportado = saldo, valor = última valoración
+  const accTotals = brokers.reduce((t, a) => ({ value: t.value + valueOf(a), net: t.net + a.balance_cents }), { value: 0, net: 0 })
   const totals = (positions.data ?? []).reduce(
     (t, p) => ({
       value: t.value + p.value_cents,
@@ -78,7 +83,10 @@ export function InvestmentsPage() {
       ret: t.ret + p.total_return_cents,
       income: t.income + p.income_cents,
     }),
-    { value: 0, contributed: 0, net: 0, ret: 0, income: 0 },
+    {
+      value: accTotals.value, contributed: Math.max(accTotals.net, 0), net: accTotals.net,
+      ret: accTotals.value - accTotals.net, income: 0,
+    },
   )
   const byType = Object.entries(
     list.reduce<Record<string, number>>((m, i) => {
@@ -88,8 +96,7 @@ export function InvestmentsPage() {
   ).map(([k, v]) => ({ name: ASSET_TYPE_LABEL[k as AssetType], value: v, color: ASSET_COLOR[k as AssetType] }))
     .sort((a, b) => b.value - a.value)
 
-  const brokers = (accounts.data ?? []).filter((a) => a.kind === 'investment' && !a.is_archived)
-  const loading = investments.isLoading || positions.isLoading
+  const loading = investments.isLoading || positions.isLoading || accounts.isLoading || values.isLoading
 
   return (
     <>
@@ -100,9 +107,9 @@ export function InvestmentsPage() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="col-span-2 lg:col-span-1">
           <StatCard tone="brand" label="Valor de la cartera" icon={<TrendingUp className="size-3.5" />} cents={loading ? undefined : totals.value}
-            hint={`${list.length} ${list.length === 1 ? 'inversión' : 'inversiones'}`} />
+            hint={`${list.length + brokers.length} ${list.length + brokers.length === 1 ? 'inversión' : 'inversiones'}`} />
         </div>
-        <StatCard label="Aportado neto" cents={loading ? undefined : totals.net} hint="Compras − ventas" />
+        <StatCard label="Aportado neto" cents={loading ? undefined : totals.net} hint="Lo que has metido − lo que has sacado" />
         <StatCard label="Rentabilidad total" cents={loading ? undefined : totals.ret} tone={totals.ret >= 0 ? 'positive' : 'negative'}
           hint={totals.contributed ? `${formatSignedPercent(totals.ret, totals.contributed)} sobre lo aportado` : 'Sin aportaciones'} />
         <StatCard label="Dividendos e intereses" cents={loading ? undefined : totals.income} hint="Ya incluidos en la rentabilidad" />
@@ -127,19 +134,35 @@ export function InvestmentsPage() {
           <Card title="Cuentas de inversión">
             {brokers.length ? (
               <ul className="divide-y divide-slate-100">
-                {brokers.map((a) => (
-                  <li key={a.id} className="flex items-center justify-between py-2.5 text-sm">
-                    <span>{a.name} <span className="text-slate-400">· {a.institution ?? ACCOUNT_KIND_LABEL[a.kind]}</span></span>
-                    <Money cents={a.balance_cents} className="font-semibold" />
-                  </li>
-                ))}
+                {brokers.map((a) => {
+                  const v = values.data?.get(a.id)
+                  const value = valueOf(a)
+                  return (
+                    <li key={a.id}>
+                      <Link to={`/cuentas/${a.id}`} className="-mx-2 flex items-center gap-3 rounded-xl px-2 py-3 text-sm hover:bg-slate-50">
+                        <span className="size-2.5 shrink-0 rounded-sm" style={{ background: a.color }} />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium">{a.name}</p>
+                          <p className="text-xs text-slate-500">
+                            Aportado <span className="tabular">{formatCents(a.balance_cents)}</span>
+                            {v?.valued_on ? ` · valor del ${formatDate(v.valued_on)}` : ' · sin actualizar valor'}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <Money cents={value} className="font-semibold" />
+                          <p className="text-xs">{v?.valued_on ? <ReturnText cents={value - a.balance_cents} base={a.balance_cents} /> : null}</p>
+                        </div>
+                      </Link>
+                    </li>
+                  )
+                })}
               </ul>
             ) : (
               <p className="text-sm text-slate-500">
-                Opcional: si tienes liquidez en un bróker, crea una cuenta de tipo «Inversión» en <Link to="/ajustes" className="underline">Ajustes</Link> y paga las compras desde ella.
+                Crea una cuenta de tipo «Inversión» en <Link to="/ajustes" className="underline">Ajustes</Link> y hazle transferencias de tipo «Inversión» desde tus cuentas: se suman como aportado.
               </p>
             )}
-            <p className="mt-3 text-xs text-slate-500">El saldo en efectivo del bróker y el valor de la cartera se suman por separado al patrimonio, sin contarse dos veces.</p>
+            <p className="mt-3 text-xs text-slate-500">Pulsa una cuenta para ver lo aportado cada mes y actualizar su valor. La rentabilidad es el valor actual menos lo aportado.</p>
           </Card>
         </div>
       </div>

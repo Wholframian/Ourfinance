@@ -9,7 +9,7 @@ import { Card, ErrorBox, PageLoader, StatCard } from '../components/ui'
 import {
   useAccountFlows, useAccounts, useCategoryBreakdown, useMonthlyFlows, useNetWorthSeries, usePeriodSummary, useTransactions,
 } from '../hooks/data'
-import { useHouseholdNetWorth, useInvestments, usePositions } from '../hooks/phase3'
+import { useAccountValues, useHouseholdNetWorth, useInvestments, usePositions } from '../hooks/phase3'
 import { addMonths, endOfMonth, periodLabel, startOfMonth } from '../lib/dates'
 import { formatCents } from '../lib/money'
 import { useAuth } from '../providers/AuthProvider'
@@ -39,11 +39,14 @@ export function DashboardPage() {
   const positions = usePositions()
   const investments = useInvestments()
   const joint = useHouseholdNetWorth()
+  const values = useAccountValues()
 
   const list = (accounts.data ?? []).filter((a) => !a.is_archived || a.balance_cents !== 0)
   const portfolio = (positions.data ?? []).reduce((s, p) => s + p.value_cents, 0)
-  const total = list.reduce((s, a) => s + a.balance_cents, 0) + portfolio
-  const ready = !!accounts.data && !!positions.data && !!investments.data
+  // En las cuentas de inversión cuenta su valor (última actualización), no solo lo aportado
+  const valueOf = (a: (typeof list)[number]) => (a.kind === 'investment' ? values.data?.get(a.id)?.value_cents : undefined) ?? a.balance_cents
+  const total = list.reduce((s, a) => s + valueOf(a), 0) + portfolio
+  const ready = !!accounts.data && !!positions.data && !!investments.data && !!values.data
   const jointRows = joint.data ?? []
   const allSharing = jointRows.length > 0 && jointRows.every((r) => r.is_sharing)
   const jointTotal = jointRows.reduce((s, r) => s + (r.net_worth_cents ?? 0), 0)
@@ -58,7 +61,7 @@ export function DashboardPage() {
   const flowById = new Map((accFlows.data ?? []).map((f) => [f.account_id, f]))
   const flowsReady = !!accFlows.data && !!accounts.data
   const flowSum = (xs: typeof list, k: 'income_cents' | 'expense_cents') => xs.reduce((t, a) => t + (flowById.get(a.id)?.[k] ?? 0), 0)
-  const sum = (xs: typeof list) => xs.reduce((s, a) => s + a.balance_cents, 0)
+  const sum = (xs: typeof list) => xs.reduce((s, a) => s + valueOf(a), 0)
   const s = summary.data
 
   const me = profileById(user?.id)
@@ -84,6 +87,7 @@ export function DashboardPage() {
         hint={<>
           {allSharing ? <>Conjunto: <strong className="tabular">{formatCents(jointTotal)}</strong> · </> : 'Tus cuentas, las compartidas y la cartera · '}
           Ahorro del periodo: <strong className="tabular">{s ? formatCents(s.savings_cents) : '…'}</strong>
+          {s && s.invested_cents !== 0 ? <> · Invertido: <strong className="tabular">{formatCents(s.invested_cents)}</strong></> : null}
         </>} />
 
       <div className="mt-3 grid gap-3 lg:grid-cols-2">
@@ -110,11 +114,12 @@ export function DashboardPage() {
         <Card title="Evolución del patrimonio">
           {netWorth.isLoading ? <PageLoader /> : <TrendArea data={netWorth.data ?? []} dataKey="net_worth_cents" label="Patrimonio" />}
         </Card>
-        <Card title="Ingresos y gastos por mes">
+        <Card title="Ingresos, gastos e inversión por mes">
           {flows.isLoading ? <PageLoader /> : (
             <MonthlyBars data={(flows.data ?? []) as never} series={[
               { key: 'income_cents', label: 'Ingresos', color: SERIES[0] },
               { key: 'expense_cents', label: 'Gastos', color: SERIES[1] },
+              { key: 'invested_cents', label: 'Invertido', color: SERIES[3] },
             ]} />
           )}
         </Card>
