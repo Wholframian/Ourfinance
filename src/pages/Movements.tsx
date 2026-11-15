@@ -114,16 +114,19 @@ export function MovementsPage() {
         ) : (
           <>
             {/* Móvil: lista */}
-            <ul className="divide-y divide-slate-100 px-3 py-1 md:hidden">
+            <ul className="divide-y divide-slate-100 px-3 py-1 lg:hidden">
               {rows.map((tx) => <TransactionRow key={tx.id} tx={tx} onClick={() => setSelected(tx)} />)}
             </ul>
             {/* Escritorio: tabla */}
-            <div className="hidden overflow-x-auto md:block">
+            <div className="hidden overflow-x-auto lg:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 text-left text-xs font-medium text-slate-500">
-                    {['Fecha', 'Descripción', 'Categoría', 'Usuario', 'Tipo', 'Cuenta', 'Visibilidad'].map((h) => <th key={h} className="px-4 py-3 font-medium">{h}</th>)}
-                    <th className="px-4 py-3 text-right font-medium">Importe</th>
+                    {/* Las columnas menos importantes solo aparecen en pantallas anchas */}
+                    {[['Fecha', ''], ['Descripción', ''], ['Categoría', ''], ['Usuario', 'hidden 2xl:table-cell'], ['Tipo', 'hidden xl:table-cell'], ['Cuenta', 'hidden xl:table-cell'], ['', '']].map(([h, cls], i) => (
+                      <th key={i} className={clsx('px-3 py-3 font-medium', cls)}>{h || <span className="sr-only">Visibilidad</span>}</th>
+                    ))}
+                    <th className="px-3 py-3 text-right font-medium">Importe</th>
                   </tr>
                 </thead>
                 <tbody className={clsx('divide-y divide-slate-50', q.isFetching && 'opacity-60')}>
@@ -133,26 +136,26 @@ export function MovementsPage() {
                     const author = profileById(tx.created_by)
                     return (
                       <tr key={tx.id} className="cursor-pointer hover:bg-slate-50" onClick={() => setSelected(tx)}>
-                        <td className="px-4 py-3 whitespace-nowrap text-slate-500 tabular">{formatDate(tx.occurred_on)}</td>
-                        <td className="max-w-64 px-4 py-3">
+                        <td className="px-3 py-3 whitespace-nowrap text-slate-500 tabular">{formatDate(tx.occurred_on)}</td>
+                        <td className="max-w-64 px-3 py-3">
                           <span className="flex items-center gap-1.5 font-medium text-slate-900">
                             <span className="truncate">{tx.description}</span>
                             {!!tx.attachments?.length && <Paperclip className="size-3 shrink-0 text-slate-400" />}
                           </span>
                           {!!tx.tags.length && <span className="block truncate text-xs text-slate-400">{tx.tags.map((t) => `#${t}`).join(' ')}</span>}
                         </td>
-                        <td className="px-4 py-3 text-slate-600">
-                          {cat ? <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full" style={{ background: cat.color }} />{sub?.name ?? cat.name}</span> : '—'}
+                        <td className="max-w-48 px-3 py-3 text-slate-600">
+                          {cat ? <span className="flex items-center gap-1.5"><span className="size-2 shrink-0 rounded-full" style={{ background: cat.color }} /><span className="truncate">{sub?.name ?? cat.name}</span></span> : '—'}
                         </td>
-                        <td className="px-4 py-3"><span className="inline-flex items-center gap-2"><Avatar name={author?.full_name} color={author?.color} />{author?.full_name?.split(' ')[0]}</span></td>
-                        <td className="px-4 py-3 text-slate-600">{TX_TYPE_LABEL[tx.type]}</td>
-                        <td className="max-w-48 truncate px-4 py-3 text-slate-600">{txAccountsLabel(tx, lookups.accountName, author?.full_name?.split(' ')[0])}</td>
-                        <td className="px-4 py-3 text-slate-500">
+                        <td className="hidden px-3 py-3 2xl:table-cell"><span className="inline-flex items-center gap-2"><Avatar name={author?.full_name} color={author?.color} />{author?.full_name?.split(' ')[0]}</span></td>
+                        <td className="hidden px-3 py-3 whitespace-nowrap text-slate-600 xl:table-cell">{TX_TYPE_LABEL[tx.type]}</td>
+                        <td className="hidden max-w-48 truncate px-3 py-3 text-slate-600 xl:table-cell">{txAccountsLabel(tx, lookups.accountName, author?.full_name?.split(' ')[0])}</td>
+                        <td className="px-3 py-3 text-slate-400">
                           {tx.visibility === 'shared'
-                            ? <span className="inline-flex items-center gap-1"><Users className="size-3.5" />Compartido</span>
-                            : <span className="inline-flex items-center gap-1"><Lock className="size-3.5" />Personal</span>}
+                            ? <span title="Compartido"><Users className="size-3.5" aria-hidden /><span className="sr-only">Compartido</span></span>
+                            : <span title="Personal"><Lock className="size-3.5" aria-hidden /><span className="sr-only">Personal</span></span>}
                         </td>
-                        <td className="px-4 py-3 text-right font-semibold"><Money cents={tx.amount_cents} signed={txSign(tx.type)} /></td>
+                        <td className="px-3 py-3 text-right font-semibold whitespace-nowrap"><Money cents={tx.amount_cents} signed={txSign(tx.type)} /></td>
                       </tr>
                     )
                   })}

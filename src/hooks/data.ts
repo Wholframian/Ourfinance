@@ -1,4 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { uuid } from '../lib/uuid'
 import { supabase } from '../lib/supabase'
 import type {
   Account, Attachment, Category, CategoryTotal, Invitation, MonthlyFlow, PeriodSummary,
@@ -278,7 +279,7 @@ async function uploadAttachment(hid: string, txId: string, file: File) {
   const { data: u } = await supabase.auth.getUser()
   const uid = u.user!.id
   const safeName = file.name.normalize('NFD').replace(/[^\w.-]+/g, '_').slice(-80)
-  const path = `${hid}/${uid}/${crypto.randomUUID()}-${safeName}`
+  const path = `${hid}/${uid}/${uuid()}-${safeName}`
   const up = await supabase.storage.from('attachments').upload(path, file, { contentType: file.type, upsert: false })
   if (up.error) throw new Error('No se pudo subir el justificante: ' + up.error.message)
   const { error } = await supabase.from('attachments').insert({

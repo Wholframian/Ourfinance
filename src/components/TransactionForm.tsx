@@ -1,4 +1,5 @@
 import { Paperclip, Trash2 } from 'lucide-react'
+import { uuid } from '../lib/uuid'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
   ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_BYTES, findPossibleDuplicate, openAttachment, useAccounts, useCategories,
@@ -140,7 +141,7 @@ function TransactionFormInner({ open, onClose, editing, duplicateOf, presetType,
   const [repeatAuto, setRepeatAuto] = useState(true)
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null)
   const [checking, setChecking] = useState(false)
-  const clientRequestId = useMemo(() => crypto.randomUUID(), [])
+  const clientRequestId = useMemo(() => uuid(), [])
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => {
     setF((prev) => ({ ...prev, [k]: v }))

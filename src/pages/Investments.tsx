@@ -1,4 +1,5 @@
 import { ArrowLeft, Lock, Pencil, Plus, Trash2, TrendingUp, Users } from 'lucide-react'
+import { uuid } from '../lib/uuid'
 import { useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { DonutWithTable, NEUTRAL, SERIES } from '../components/charts'
@@ -393,7 +394,7 @@ function OperationForm({ inv, pos, initialType, onClose }: { inv: Investment; po
   const [cash, setCash] = useState(inv.account_id && usable.some((a) => a.id === inv.account_id) ? inv.account_id : '')
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const clientRequestId = useMemo(() => crypto.randomUUID(), [])
+  const clientRequestId = useMemo(() => uuid(), [])
 
   const byUnits = !unitless && (type === 'buy' || type === 'sell')
   const priceOnly = !unitless && type === 'valuation'

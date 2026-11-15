@@ -1,7 +1,7 @@
 import { clsx } from 'clsx'
 import { AlertCircle, Loader2, X } from 'lucide-react'
 import {
-  forwardRef, useEffect, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode,
+  forwardRef, useEffect, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode,
   type SelectHTMLAttributes, type TextareaHTMLAttributes,
 } from 'react'
 import { errorMessage } from '../lib/errors'
@@ -39,10 +39,10 @@ export function Button({
 // ---------------------------------------------------------------- Tarjetas
 export function Card({ className, children, title, action }: { className?: string; children: ReactNode; title?: ReactNode; action?: ReactNode }) {
   return (
-    <section className={clsx('rounded-2xl bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ring-1 ring-slate-200/70', className)}>
+    <section className={clsx('min-w-0 rounded-2xl bg-white p-4 sm:p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ring-1 ring-slate-200/70', className)}>
       {(title || action) && (
         <header className="mb-4 flex items-center justify-between gap-3">
-          {title && <h2 className="text-sm font-semibold text-slate-900">{title}</h2>}
+          {title && <h2 className="min-w-0 text-sm font-semibold text-slate-900">{title}</h2>}
           {action}
         </header>
       )}
@@ -55,13 +55,13 @@ export function StatCard({ label, cents, hint, tone = 'default', icon, loading }
   label: string; cents: number | undefined; hint?: ReactNode; tone?: 'default' | 'positive' | 'negative' | 'brand'; icon?: ReactNode; loading?: boolean
 }) {
   return (
-    <div className={clsx('rounded-2xl p-4 ring-1 sm:p-5', tone === 'brand' ? 'bg-ink text-white ring-ink' : 'bg-white ring-slate-200/70')}>
+    <div className={clsx('min-w-0 rounded-2xl p-3 ring-1 min-[380px]:p-4 sm:p-5', tone === 'brand' ? 'bg-ink text-white ring-ink' : 'bg-white ring-slate-200/70')}>
       <div className={clsx('flex items-center gap-2 text-xs font-medium', tone === 'brand' ? 'text-slate-300' : 'text-slate-500')}>
         {icon}
         {label}
       </div>
       <div className={clsx(
-        'mt-2 text-xl font-semibold tracking-tight tabular sm:text-2xl',
+        'mt-2 text-base font-semibold tracking-tight tabular min-[380px]:text-xl sm:text-2xl',
         tone === 'positive' && 'text-emerald-600',
         tone === 'negative' && 'text-slate-900',
       )}>
@@ -187,32 +187,48 @@ export function Avatar({ name, color, size = 'sm' }: { name?: string | null; col
 }
 
 // ---------------------------------------------------------------- Modal
+// Bloqueo del scroll de fondo compartido por todos los diálogos abiertos: se
+// cuenta cuántos hay para no dejar la página bloqueada al cerrar uno sobre otro.
+let openModals = 0
+function lockScroll() {
+  if (openModals++ === 0) document.body.style.overflow = 'hidden'
+}
+function unlockScroll() {
+  openModals = Math.max(0, openModals - 1)
+  if (openModals === 0) document.body.style.overflow = ''
+}
+
 export function Modal({ open, onClose, title, children, footer, wide }: {
   open: boolean; onClose: () => void; title: string; children: ReactNode; footer?: ReactNode; wide?: boolean
 }) {
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
   useEffect(() => {
     if (!open) return
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && closeRef.current()
     document.addEventListener('keydown', onKey)
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    lockScroll()
     return () => {
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = prev
+      unlockScroll()
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label={title}>
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]" onClick={onClose} />
-      <div className={clsx('relative flex max-h-[92dvh] w-full flex-col rounded-t-3xl bg-white shadow-xl sm:rounded-2xl', wide ? 'sm:max-w-2xl' : 'sm:max-w-lg')}>
-        <header className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-          <h2 className="text-base font-semibold">{title}</h2>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" aria-label="Cerrar"><X className="size-5" /></button>
+      <div className={clsx(
+        'relative flex max-h-[calc(100dvh-env(safe-area-inset-top)-0.5rem)] w-full flex-col rounded-t-3xl bg-white shadow-xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl',
+        wide ? 'sm:max-w-2xl' : 'sm:max-w-lg',
+      )}>
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+          <h2 className="min-w-0 text-base font-semibold">{title}</h2>
+          <button onClick={onClose} className="shrink-0 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" aria-label="Cerrar"><X className="size-5" /></button>
         </header>
-        <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <footer className="flex justify-end gap-2 border-t border-slate-100 px-5 py-3 safe-bottom">{footer}</footer>}
+        <div className="min-h-0 flex-1 overscroll-contain overflow-y-auto px-5 py-4">{children}</div>
+        {footer && <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-slate-100 px-5 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">{footer}</footer>}
+        {!footer && <div className="shrink-0 pb-[env(safe-area-inset-bottom)]" />}
       </div>
     </div>
   )

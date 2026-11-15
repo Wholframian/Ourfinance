@@ -62,7 +62,7 @@ function ProfileCard() {
       <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); m.mutate() }}>
         <div className="flex items-center gap-3">
           <Avatar name={name} color={color} size="md" />
-          <div className="text-sm text-slate-500">{user?.email}</div>
+          <div className="min-w-0 text-sm break-all text-slate-500">{user?.email}</div>
         </div>
         <Field label="Nombre" htmlFor="pname"><Input id="pname" maxLength={120} value={name} onChange={(e) => setName(e.target.value)} /></Field>
         <Field label="Color">

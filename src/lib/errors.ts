@@ -3,6 +3,7 @@ interface MaybePgError {
   message?: string
   code?: string
   details?: string
+  name?: string
 }
 
 const AUTH_MESSAGES: Record<string, string> = {
@@ -19,6 +20,8 @@ export function errorMessage(err: unknown): string {
   const msg = e.message ?? ''
   if (AUTH_MESSAGES[msg]) return AUTH_MESSAGES[msg]
   if (/rate limit/i.test(msg)) return 'Demasiados intentos. Espera un momento y vuelve a probar.'
+  if (/AbortError|TimeoutError|Tiempo de espera|aborted/i.test(msg) || e.name === 'TimeoutError' || e.name === 'AbortError')
+    return 'El servidor está tardando demasiado. Revisa tu conexión y vuelve a intentarlo.'
   if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) return 'Sin conexión con el servidor. Revisa tu conexión a internet.'
   switch (e.code) {
     case '23505':

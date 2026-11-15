@@ -11,10 +11,31 @@
 }
 
 @layer base {
-  html { -webkit-tap-highlight-color: transparent; }
-  body { @apply bg-slate-50 text-slate-900 antialiased; font-feature-settings: "tnum" 1, "cv11" 1; }
+  html {
+    -webkit-tap-highlight-color: transparent;
+    /* iOS/Android no agrandan el texto por su cuenta al girar el móvil */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+    font-feature-settings: "tnum" 1, "cv11" 1;
+    /* Un correo o nombre muy largo se parte en vez de ensanchar la pantalla */
+    overflow-wrap: break-word;
+  }
   input, select, textarea, button { font: inherit; }
+  /* Los hijos de una rejilla pueden encoger: así nada empuja la página hacia los lados */
+  .grid > * { min-width: 0; }
+  /* En móvil, los campos a 16px: si son más pequeños, iPhone hace zoom al tocarlos y la página se queda ampliada */
+  @media (max-width: 639px) {
+    input:not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: 16px; }
+  }
 }
 
 @utility tabular { font-variant-numeric: tabular-nums; }
 @utility safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+/* Márgenes laterales que respetan la muesca del móvil en horizontal */
+@utility safe-x {
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}

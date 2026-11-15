@@ -151,9 +151,9 @@ export function DashboardPage() {
 
 function SidePanel({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
   return (
-    <section className="rounded-2xl bg-slate-100/70 p-3 ring-1 ring-slate-200/60">
+    <section className="min-w-0 rounded-2xl bg-slate-100/70 p-2 ring-1 ring-slate-200/60 min-[380px]:p-3">
       <h2 className="mb-2 flex items-center gap-2 px-1 text-sm font-semibold text-slate-700">{icon}{title}</h2>
-      <div className="grid grid-cols-2 gap-3">{children}</div>
+      <div className="grid grid-cols-2 gap-2 min-[380px]:gap-3">{children}</div>
     </section>
   )
 }
