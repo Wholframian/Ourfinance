@@ -324,7 +324,7 @@ function TransactionFormInner({ open, onClose, editing, duplicateOf, presetType,
         )}
         {f.type === 'investment' && (
           <p className="rounded-xl bg-slate-100 px-3 py-2 text-xs text-slate-600">
-            Mover dinero a una cuenta de inversión no es un gasto: cambia dónde está tu patrimonio, no cuánto tienes.
+            Mover dinero a una cuenta de inversión no es un gasto: se suma a lo aportado en esa cuenta y en los resúmenes sale como «Invertido».
           </p>
         )}
 

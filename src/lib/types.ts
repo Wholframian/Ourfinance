@@ -111,6 +111,8 @@ export interface PeriodSummary {
   contribution_cents: number
   savings_cents: number
   tx_count: number
+  /** A inversiones, neto de lo que vuelve (no es gasto) */
+  invested_cents: number
 }
 
 export interface MonthlyFlow {
@@ -121,6 +123,7 @@ export interface MonthlyFlow {
   shared_expense_cents: number
   contribution_cents: number
   savings_cents: number
+  invested_cents: number
 }
 
 export interface CategoryTotal {
@@ -275,6 +278,17 @@ export interface Investment {
   quote_source: string | null
   quote_symbol: string | null
   acquired_on: string | null
+  notes: string | null
+  created_at: string
+}
+
+export interface AccountValuation {
+  id: string
+  account_id: string
+  household_id: string
+  created_by: string
+  valued_on: string
+  value_cents: number
   notes: string | null
   created_at: string
 }

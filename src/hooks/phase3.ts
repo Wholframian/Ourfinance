@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
-import type { Investment, InvestmentOperation, InvestmentTxType, Position, Visibility } from '../lib/types'
+import type { AccountValuation, Investment, InvestmentOperation, InvestmentTxType, Position, Visibility } from '../lib/types'
 import { useHouseholdId } from '../providers/HouseholdProvider'
 import { useInvalidateFinance } from './data'
 
@@ -139,6 +139,48 @@ export function useDeleteOperation() {
   const invalidate = useInvalidateInvestments()
   return useMutation({
     mutationFn: async (id: string) => { await must(supabase.from('investment_transactions').delete().eq('id', id)) },
+    onSuccess: () => invalidate(),
+  })
+}
+
+// ---------------------------------------------------------------- Cuentas de inversión
+export interface AccountValue { account_id: string; balance_cents: number; value_cents: number; valued_on: string | null }
+
+/** Saldo (lo aportado) y valor de cada cuenta. Sin valoración, valor = saldo. */
+export function useAccountValues(at?: string | null) {
+  const hid = useHouseholdId()
+  return useQuery({
+    queryKey: ['stats', 'account-values', hid, at ?? null],
+    queryFn: async () => {
+      const rows = (await must(supabase.rpc('account_values', { p_household: hid, p_at: at ?? null })) as AccountValue[]).map(norm)
+      return new Map(rows.map((r) => [r.account_id, r]))
+    },
+  })
+}
+
+export function useAccountValuations(accountId: string | undefined) {
+  return useQuery({
+    queryKey: ['stats', 'valuations', accountId],
+    enabled: !!accountId,
+    queryFn: async () =>
+      (await must(supabase.from('account_valuations').select('*').eq('account_id', accountId!)
+        .order('valued_on', { ascending: false }))).map(norm) as AccountValuation[],
+  })
+}
+
+export function useSetAccountValuation() {
+  const invalidate = useInvalidateFinance()
+  return useMutation({
+    mutationFn: async (v: { accountId: string; on: string; valueCents: number; notes: string | null }) =>
+      must(supabase.rpc('set_account_valuation', { p_account: v.accountId, p_on: v.on, p_value_cents: v.valueCents, p_notes: v.notes })),
+    onSuccess: () => invalidate(),
+  })
+}
+
+export function useDeleteAccountValuation() {
+  const invalidate = useInvalidateFinance()
+  return useMutation({
+    mutationFn: async (id: string) => { await must(supabase.from('account_valuations').delete().eq('id', id)) },
     onSuccess: () => invalidate(),
   })
 }
