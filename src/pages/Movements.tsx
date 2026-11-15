@@ -1,6 +1,7 @@
 import { clsx } from 'clsx'
 import { ChevronLeft, ChevronRight, Lock, Paperclip, Search, SlidersHorizontal, Users } from 'lucide-react'
 import { useDeferredValue, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { PageHeader } from '../components/Layout'
 import { RecurringCard } from '../components/RecurringCard'
 import { useRecurring } from '../hooks/phase2'
@@ -26,11 +27,12 @@ export function MovementsPage() {
   const deferredSearch = useDeferredValue(search)
   const [type, setType] = useState<TransactionType | ''>('')
   const [categoryId, setCategoryId] = useState('')
-  const [accountId, setAccountId] = useState('')
+  const [searchParams] = useSearchParams()
+  const [accountId, setAccountId] = useState(searchParams.get('cuenta') ?? '')
   const [userId, setUserId] = useState('')
   const [sort, setSort] = useState<NonNullable<TxFilters['sort']>>('date_desc')
   const [page, setPage] = useState(0)
-  const [showFilters, setShowFilters] = useState(false)
+  const [showFilters, setShowFilters] = useState(!!searchParams.get('cuenta'))
   const [selected, setSelected] = useState<Transaction | null>(null)
 
   const filters: TxFilters = {

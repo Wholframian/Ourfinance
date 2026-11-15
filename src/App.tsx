@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from './providers/AuthProvider'
 import { HouseholdProvider, useHousehold } from './providers/HouseholdProvider'
 import { PeriodProvider } from './providers/PeriodProvider'
 import { ForgotPasswordPage, LoginPage, NewPasswordPage, RegisterPage } from './pages/AuthPages'
+import { AccountDetailPage, AccountsPage } from './pages/Accounts'
 import { CommonAccountPage } from './pages/CommonAccount'
 import { DashboardPage } from './pages/Dashboard'
 import { InvestmentDetailPage, InvestmentsPage } from './pages/Investments'
@@ -76,6 +77,8 @@ export default function App() {
                 <Route element={<Protected />}>
                   <Route index element={<DashboardPage />} />
                   <Route path="movimientos" element={<MovementsPage />} />
+                  <Route path="cuentas" element={<AccountsPage />} />
+                  <Route path="cuentas/:id" element={<AccountDetailPage />} />
                   <Route path="cuenta-comun" element={<CommonAccountPage />} />
                   <Route path="inversiones" element={<InvestmentsPage />} />
                   <Route path="inversiones/:id" element={<InvestmentDetailPage />} />
